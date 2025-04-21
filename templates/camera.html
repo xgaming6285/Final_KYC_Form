@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ID Card Camera Scanner</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .camera-container {
+            margin: 20px 0;
+            text-align: center;
+        }
+        #video {
+            width: 100%;
+            max-width: 640px;
+            height: auto;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+        }
+        #canvas {
+            display: none;
+        }
+        .controls {
+            margin: 20px 0;
+            text-align: center;
+        }
+        .btn {
+            display: inline-block;
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 20px;
+            text-align: center;
+            text-decoration: none;
+            font-size: 16px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .btn:hover {
+            background-color: #45a049;
+        }
+        .results {
+            margin-top: 30px;
+            display: none;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .back-link {
+            display: block;
+            margin-top: 20px;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        #capturedImage {
+            max-width: 100%;
+            margin-top: 20px;
+            display: none;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .error-message {
+            background-color: #ffecec;
+            color: #940000;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #f5aca6;
+            margin: 15px 0;
+        }
+        .instructions {
+            background-color: #e7f3fe;
+            border-left: 6px solid #2196F3;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        #file-upload-container {
+            display: none;
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px dashed #aaa;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        input[type="file"] {
+            margin: 10px 0;
+            display: block;
+            width: 100%;
+        }
+        .camera-error-options {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>ID Card Camera Scanner</h1>
+    
+    <div class="form-group">
+        <label for="document_type">Document Type:</label>
+        <select id="document_type">
+            <option value="bulgarian_id">Bulgarian ID Card</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="side">Card Side:</label>
+        <select id="side">
+            <option value="front">Front Side</option>
+            <option value="back">Back Side</option>
+        </select>
+    </div>
+    
+    <div class="camera-container">
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas"></canvas>
+        <img id="capturedImage" alt="Captured ID image">
+    </div>
+
+    <div id="camera-error" class="error-message" style="display:none">
+        <strong>Camera access error!</strong> 
+        <p id="error-details">Error accessing camera. Please ensure camera permissions are granted.</p>
+        <div class="instructions">
+            <p><strong>Why this happens:</strong> Many browsers restrict camera access when using regular HTTP connections and IP addresses instead of HTTPS.</p>
+            <p><strong>Try these solutions:</strong></p>
+            <ol>
+                <li>Use Chrome or Edge browser for best compatibility</li>
+                <li>Try using the "Upload Image" option instead of the camera</li>
+                <li>Ensure no other apps are using your camera</li>
+                <li>Check your browser settings to ensure camera permissions are enabled</li>
+            </ol>
+        </div>
+    </div>
+
+    <div id="file-upload-container">
+        <h3>Alternative: Upload ID Image</h3>
+        <p>Since camera access is restricted, you can upload an image of your ID instead:</p>
+        <input type="file" id="id-file-upload" accept="image/*" capture="camera">
+        <button id="process-file-btn" class="btn">Process Uploaded Image</button>
+    </div>
+    
+    <div class="controls">
+        <button id="captureBtn" class="btn">Capture ID Card</button>
+        <button id="processBtn" class="btn" style="display: none;">Process ID Card</button>
+    </div>
+    
+    <div id="results" class="results">
+        <h2>Extracted Information</h2>
+        <table id="resultsTable">
+            <thead>
+                <tr>
+                    <th>Field</th>
+                    <th>Value</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Results will be added here -->
+            </tbody>
+        </table>
+    </div>
+    
+    <a href="/" class="back-link">Back to Home</a>
+    
+    <script>
+        // DOM elements
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const captureBtn = document.getElementById('captureBtn');
+        const processBtn = document.getElementById('processBtn');
+        const capturedImage = document.getElementById('capturedImage');
+        const resultsDiv = document.getElementById('results');
+        const resultsTable = document.getElementById('resultsTable').querySelector('tbody');
+        const cameraErrorDiv = document.getElementById('camera-error');
+        const errorDetails = document.getElementById('error-details');
+        const fileUploadContainer = document.getElementById('file-upload-container');
+        const fileUploadInput = document.getElementById('id-file-upload');
+        const processFileBtn = document.getElementById('process-file-btn');
+        
+        // Initialize camera
+        async function initCamera() {
+            // Check if mediaDevices API is available before trying to use it
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                // Handle the case where mediaDevices is not available
+                console.error('MediaDevices API not available in this browser or context');
+                
+                // Show error message specifically for this issue
+                cameraErrorDiv.style.display = 'block';
+                errorDetails.innerHTML = `
+                    <strong>Your browser cannot access the camera in this context.</strong><br>
+                    This is likely because:
+                    <ul>
+                        <li>You're using an HTTP connection instead of HTTPS</li>
+                        <li>Your browser restricts camera access on non-secure connections</li>
+                        <li>Your browser may not support the camera API</li>
+                    </ul>
+                `;
+                
+                // Hide video element and capture button
+                video.style.display = 'none';
+                captureBtn.style.display = 'none';
+                
+                // Show file upload alternative
+                fileUploadContainer.style.display = 'block';
+                return;
+            }
+            
+            try {
+                // Use facing environment camera on mobile (rear camera)
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: { ideal: 'environment' },
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    },
+                    audio: false
+                });
+                video.srcObject = stream;
+                
+                // Wait for video metadata to load
+                video.onloadedmetadata = () => {
+                    // Set canvas dimensions to match video
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                };
+                
+                // Hide error if camera starts successfully
+                cameraErrorDiv.style.display = 'none';
+                fileUploadContainer.style.display = 'none';
+                video.style.display = 'block';
+                captureBtn.style.display = 'inline-block';
+            } catch (err) {
+                console.error('Error accessing camera:', err);
+                
+                // Show error message
+                cameraErrorDiv.style.display = 'block';
+                errorDetails.textContent = `Error accessing camera: ${err.message}. Please ensure camera permissions are granted.`;
+                
+                // Hide video element and capture button
+                video.style.display = 'none';
+                captureBtn.style.display = 'none';
+                
+                // Show file upload alternative
+                fileUploadContainer.style.display = 'block';
+            }
+        }
+        
+        // Process uploaded file
+        processFileBtn.addEventListener('click', () => {
+            const file = fileUploadInput.files[0];
+            if (!file) {
+                alert('Please select a file first');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                // Display the image
+                capturedImage.src = e.target.result;
+                capturedImage.style.display = 'block';
+                
+                // Hide other elements
+                video.style.display = 'none';
+                fileUploadContainer.style.display = 'none';
+                
+                // Show process button
+                processBtn.style.display = 'inline-block';
+            };
+            reader.readAsDataURL(file);
+        });
+        
+        // Capture image from video
+        captureBtn.addEventListener('click', () => {
+            const context = canvas.getContext('2d');
+            // Draw current video frame to canvas
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // Convert canvas to image
+            capturedImage.src = canvas.toDataURL('image/jpeg', 0.9);
+            capturedImage.style.display = 'block';
+            
+            // Hide video, show process button
+            video.style.display = 'none';
+            captureBtn.style.display = 'none';
+            processBtn.style.display = 'inline-block';
+        });
+        
+        // Process captured image
+        processBtn.addEventListener('click', () => {
+            const documentType = document.getElementById('document_type').value;
+            const side = document.getElementById('side').value;
+            
+            // Show loading state
+            processBtn.disabled = true;
+            processBtn.innerText = 'Processing...';
+            
+            // Create form data with image
+            const formData = new FormData();
+            formData.append('document_type', documentType);
+            formData.append('side', side);
+            formData.append('image_data', capturedImage.src);
+            
+            // Send image to server
+            fetch('/process_id', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Reset button
+                processBtn.disabled = false;
+                processBtn.innerText = 'Process ID Card';
+                
+                // Clear previous results
+                resultsTable.innerHTML = '';
+                
+                if (data.success) {
+                    // Populate table with results
+                    for (const [field, value] of Object.entries(data.data)) {
+                        if (value) {
+                            const row = document.createElement('tr');
+                            
+                            const fieldCell = document.createElement('td');
+                            fieldCell.textContent = field;
+                            
+                            const valueCell = document.createElement('td');
+                            valueCell.textContent = value;
+                            
+                            row.appendChild(fieldCell);
+                            row.appendChild(valueCell);
+                            resultsTable.appendChild(row);
+                        }
+                    }
+                    
+                    resultsDiv.style.display = 'block';
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to process ID card'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error: ' + error.message);
+                processBtn.disabled = false;
+                processBtn.innerText = 'Process ID Card';
+            });
+        });
+        
+        // Add reset button to try again
+        const resetCamera = () => {
+            video.style.display = 'block';
+            capturedImage.style.display = 'none';
+            captureBtn.style.display = 'inline-block';
+            processBtn.style.display = 'none';
+            resultsDiv.style.display = 'none';
+            fileUploadContainer.style.display = 'none';
+            
+            // Try to reinitialize camera
+            initCamera();
+        };
+        
+        // Create reset button
+        const resetBtn = document.createElement('button');
+        resetBtn.textContent = 'Try Again';
+        resetBtn.className = 'btn';
+        resetBtn.addEventListener('click', resetCamera);
+        document.querySelector('.controls').appendChild(resetBtn);
+        
+        // Initialize camera when page loads
+        document.addEventListener('DOMContentLoaded', initCamera);
+    </script>
+</body>
+</html> 

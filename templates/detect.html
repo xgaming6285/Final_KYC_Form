@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload ID Card</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .upload-form {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            background-color: #f9f9f9;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        select, input[type="file"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .btn {
+            display: inline-block;
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 20px;
+            text-align: center;
+            text-decoration: none;
+            font-size: 16px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .btn:hover {
+            background-color: #45a049;
+        }
+        .results {
+            margin-top: 30px;
+            display: none;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .back-link {
+            display: block;
+            margin-top: 20px;
+            text-align: center;
+        }
+        .helper-text {
+            font-size: 0.8em;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Upload ID Card</h1>
+    <div class="upload-form">
+        <form id="uploadForm" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="document_type">Document Type:</label>
+                <select id="document_type" name="document_type">
+                    <option value="bulgarian_id">Bulgarian ID Card</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="side">Card Side:</label>
+                <select id="side" name="side">
+                    <option value="front">Front Side</option>
+                    <option value="back">Back Side</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="file">Choose Image:</label>
+                <input type="file" id="file" name="file" accept="image/*" capture="camera" required>
+                <p class="helper-text">Click to use your phone's camera or select an existing photo</p>
+            </div>
+            <button type="submit" class="btn">Process ID Card</button>
+        </form>
+    </div>
+
+    <div id="results" class="results">
+        <h2>Extracted Information</h2>
+        <table id="resultsTable">
+            <thead>
+                <tr>
+                    <th>Field</th>
+                    <th>Value</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Results will be added here -->
+            </tbody>
+        </table>
+    </div>
+
+    <a href="/" class="back-link">Back to Home</a>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            
+            // Show loading indicator
+            const submitBtn = this.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.innerText = 'Processing...';
+            
+            fetch('/process_id', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Reset button
+                submitBtn.disabled = false;
+                submitBtn.innerText = 'Process ID Card';
+                
+                // Display results
+                const resultsDiv = document.getElementById('results');
+                const resultsTable = document.getElementById('resultsTable').querySelector('tbody');
+                
+                // Clear previous results
+                resultsTable.innerHTML = '';
+                
+                if (data.success) {
+                    // Populate table with results
+                    for (const [field, value] of Object.entries(data.data)) {
+                        if (value) {
+                            const row = document.createElement('tr');
+                            
+                            const fieldCell = document.createElement('td');
+                            fieldCell.textContent = field;
+                            
+                            const valueCell = document.createElement('td');
+                            valueCell.textContent = value;
+                            
+                            row.appendChild(fieldCell);
+                            row.appendChild(valueCell);
+                            resultsTable.appendChild(row);
+                        }
+                    }
+                    
+                    resultsDiv.style.display = 'block';
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to process ID card'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error: ' + error.message);
+                submitBtn.disabled = false;
+                submitBtn.innerText = 'Process ID Card';
+            });
+        });
+    </script>
+</body>
+</html> 
