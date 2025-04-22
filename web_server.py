@@ -498,7 +498,7 @@ def verify_face():
                 # Calculate face distance
                 face_distance = face_recognition.face_distance([id_face_encodings[0]], face_encodings[0])[0]
                 # Lower face distance means better match (0 is a perfect match)
-                match_threshold = 0.65  # Slightly more lenient threshold
+                match_threshold = 0.45  # More strict threshold (changed from 0.65)
                 
                 # Log the face distance for debugging
                 print(f"Face distance: {face_distance}")
@@ -513,19 +513,19 @@ def verify_face():
                 })
             else:
                 # If we couldn't get proper face encodings but we have a face in both images
-                # Allow verification with a warning
+                # Don't allow automatic verification
                 return jsonify({
-                    'success': True,
-                    'message': 'Face verification conditionally passed, but the system could not perform detailed analysis.',
-                    'face_distance': 0.5,  # Middle value
+                    'success': False,
+                    'message': 'Face verification failed. Could not properly analyze facial features.',
+                    'face_distance': 0.9,  # High value indicating poor match
                     'id_photo_url': id_photo_url
                 })
         except Exception as e:
             print(f"Error in face encoding/comparison: {str(e)}")
-            # If face encodings fail, provide a fallback response
+            # If face encodings fail, provide a fallback response that requires manual verification
             return jsonify({
-                'success': True,
-                'message': 'Face verification conditionally passed. Could not perform detailed analysis.',
+                'success': False,
+                'message': 'Face verification could not be completed automatically. Manual verification required.',
                 'id_photo_url': id_photo_url
             })
     
