@@ -159,3 +159,34 @@ The web interface offers two main options:
 - Make sure the entire ID card is visible in the frame
 - Hold the camera steady when capturing
 - For best results, use the rear camera on mobile devices 
+
+## Face Verification Feature
+
+The system now includes face verification to compare the person's face with the photo on their ID card:
+
+### How It Works
+
+1. After scanning both sides of the ID card, you'll be automatically redirected to the face verification screen
+2. Position your face within the indicated area and ensure good lighting
+3. Click the "Capture" button to take a photo of your face
+4. Click "Verify Face" to compare your face with the ID photo
+5. The system will analyze both images and determine if they match
+6. Results will show a comparison of both images and verification status
+
+### Requirements for Face Verification
+
+- `face_recognition` package (automatically installed with requirements.txt)
+- Proper lighting for accurate face comparison
+- Clear visibility of your face when capturing
+
+### Tips for Successful Face Verification
+
+- Ensure good, even lighting on your face
+- Remove glasses, hats, or other accessories that might interfere with recognition
+- Try to match the angle and expression of the photo on your ID
+- For best results, use a front-facing camera in good lighting conditions
+
+### Privacy Notice
+
+- Face images are processed locally on the server and not stored permanently
+- Only the verification result is saved to complete the KYC process 

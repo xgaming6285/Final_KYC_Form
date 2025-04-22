@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Verification</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1, h2 {
+            color: #333;
+            text-align: center;
+        }
+        .camera-container {
+            margin: 20px 0;
+            text-align: center;
+            position: relative;
+        }
+        #video {
+            width: 100%;
+            max-width: 640px;
+            height: auto;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+        }
+        #canvas {
+            display: none;
+        }
+        #overlay-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            max-width: 640px;
+            height: auto;
+            z-index: 10;
+            pointer-events: none;
+        }
+        .controls {
+            margin: 20px 0;
+            text-align: center;
+        }
+        .btn {
+            display: inline-block;
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 20px;
+            text-align: center;
+            text-decoration: none;
+            font-size: 16px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .btn:hover {
+            background-color: #45a049;
+        }
+        .btn-disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #status-message {
+            background-color: #e7f3fe;
+            color: #0d47a1;
+            padding: 12px;
+            border-radius: 5px;
+            margin: 10px 0;
+            text-align: center;
+            font-weight: bold;
+        }
+        .comparison-container {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+        .comparison-item {
+            flex: 1;
+            margin: 0 10px;
+            text-align: center;
+        }
+        .comparison-item img {
+            max-width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .back-link {
+            display: block;
+            margin-top: 20px;
+            text-align: center;
+        }
+        #result-container {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+            text-align: center;
+        }
+        .success-result {
+            background-color: #e7f9e7;
+            color: #2e7d32;
+            border: 1px solid #a5d6a7;
+        }
+        .failure-result {
+            background-color: #ffebee;
+            color: #c62828;
+            border: 1px solid #ef9a9a;
+        }
+        .help-text {
+            background-color: #fff3e0;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-size: 0.9em;
+        }
+        #loading-spinner {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 2s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <h1>Face Verification</h1>
+    
+    <div id="status-message">Please look at the camera for face verification</div>
+    
+    <div class="help-text">
+        Position your face within the frame and ensure good lighting. Try to match the angle of your face with your ID photo.
+    </div>
+    
+    <div class="camera-container">
+        <video id="video" autoplay playsinline></video>
+        <canvas id="overlay-canvas"></canvas>
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <div id="loading-spinner">
+        <div class="spinner"></div>
+        <p>Processing... Please wait</p>
+    </div>
+    
+    <div class="controls">
+        <button id="captureBtn" class="btn">Capture</button>
+        <button id="verifyBtn" class="btn btn-disabled" disabled>Verify Face</button>
+    </div>
+    
+    <div id="result-container">
+        <h2 id="result-title">Verification Result</h2>
+        <p id="result-message"></p>
+        <button id="try-again-btn" class="btn">Try Again</button>
+        <button id="complete-btn" class="btn">Complete KYC</button>
+    </div>
+    
+    <div class="comparison-container" id="comparison-container" style="display: none;">
+        <div class="comparison-item">
+            <h3>ID Photo</h3>
+            <img id="id-photo" src="" alt="ID Photo">
+        </div>
+        <div class="comparison-item">
+            <h3>Your Captured Face</h3>
+            <img id="captured-face" src="" alt="Captured Face">
+        </div>
+    </div>
+    
+    <a href="/" class="back-link">Back to Home</a>
+    
+    <script>
+        // DOM elements
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const overlayCanvas = document.getElementById('overlay-canvas');
+        const captureBtn = document.getElementById('captureBtn');
+        const verifyBtn = document.getElementById('verifyBtn');
+        const statusMessage = document.getElementById('status-message');
+        const resultContainer = document.getElementById('result-container');
+        const resultTitle = document.getElementById('result-title');
+        const resultMessage = document.getElementById('result-message');
+        const tryAgainBtn = document.getElementById('try-again-btn');
+        const completeBtn = document.getElementById('complete-btn');
+        const comparisonContainer = document.getElementById('comparison-container');
+        const idPhoto = document.getElementById('id-photo');
+        const capturedFace = document.getElementById('captured-face');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        
+        // Get session ID from localStorage
+        const sessionId = localStorage.getItem('kyc_session_id');
+        let capturedImageData = null;
+        
+        // Initialize camera
+        async function initCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'user', // Use front camera for face verification
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                });
+                video.srcObject = stream;
+                
+                video.onloadedmetadata = () => {
+                    overlayCanvas.width = video.videoWidth;
+                    overlayCanvas.height = video.videoHeight;
+                    drawFaceOverlay();
+                };
+            } catch (err) {
+                console.error("Error accessing camera:", err);
+                statusMessage.textContent = "Error accessing camera. Please ensure camera permissions are granted.";
+                statusMessage.style.backgroundColor = "#ffebee";
+                statusMessage.style.color = "#c62828";
+            }
+        }
+        
+        // Draw face position overlay
+        function drawFaceOverlay() {
+            const ctx = overlayCanvas.getContext('2d');
+            ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            
+            // Draw face outline guide
+            const centerX = overlayCanvas.width / 2;
+            const centerY = overlayCanvas.height / 2;
+            const radius = Math.min(overlayCanvas.width, overlayCanvas.height) * 0.25;
+            
+            ctx.strokeStyle = 'rgba(76, 175, 80, 0.7)';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+            ctx.stroke();
+            
+            // Add text instruction
+            ctx.font = '20px Arial';
+            ctx.fillStyle = 'rgba(76, 175, 80, 0.9)';
+            ctx.textAlign = 'center';
+            ctx.fillText('Position your face here', centerX, centerY - radius - 20);
+        }
+        
+        // Capture face image
+        captureBtn.addEventListener('click', () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // Get the image data
+            capturedImageData = canvas.toDataURL('image/jpeg');
+            
+            // Show the captured image
+            capturedFace.src = capturedImageData;
+            
+            // Enable verify button
+            verifyBtn.classList.remove('btn-disabled');
+            verifyBtn.disabled = false;
+            
+            // Update status
+            statusMessage.textContent = "Face captured. Click 'Verify Face' to continue.";
+        });
+        
+        // Verify face against ID photo
+        verifyBtn.addEventListener('click', async () => {
+            if (!capturedImageData) {
+                alert('Please capture your face image first.');
+                return;
+            }
+            
+            if (!sessionId) {
+                alert('Session ID not found. Please start the KYC process from the beginning.');
+                return;
+            }
+            
+            // Disable the button and show loading spinner
+            verifyBtn.disabled = true;
+            verifyBtn.classList.add('btn-disabled');
+            captureBtn.disabled = true;
+            captureBtn.classList.add('btn-disabled');
+            loadingSpinner.style.display = 'block';
+            statusMessage.textContent = "Verifying face... Please wait.";
+            
+            try {
+                // Send the captured face to the server for verification
+                const response = await fetch('/verify_face', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        image_data: capturedImageData,
+                        session_id: sessionId
+                    })
+                });
+                
+                const result = await response.json();
+                
+                // Hide loading spinner
+                loadingSpinner.style.display = 'none';
+                
+                // Show comparison images
+                comparisonContainer.style.display = 'flex';
+                idPhoto.src = result.id_photo_url;
+                
+                // Display verification result
+                resultContainer.style.display = 'block';
+                
+                if (result.success) {
+                    resultContainer.classList.add('success-result');
+                    resultContainer.classList.remove('failure-result');
+                    resultTitle.textContent = "Verification Successful";
+                    resultMessage.textContent = "Your face matches with the ID photo. KYC process is complete.";
+                    completeBtn.style.display = 'inline-block';
+                } else {
+                    resultContainer.classList.add('failure-result');
+                    resultContainer.classList.remove('success-result');
+                    resultTitle.textContent = "Verification Failed";
+                    resultMessage.textContent = result.message || "Your face doesn't match the ID photo. Please try again.";
+                    completeBtn.style.display = 'none';
+                }
+                
+                // Update status
+                statusMessage.textContent = result.success ? "Face verification successful!" : "Face verification failed";
+                
+            } catch (error) {
+                console.error('Error during face verification:', error);
+                loadingSpinner.style.display = 'none';
+                statusMessage.textContent = "Error during face verification. Please try again.";
+                verifyBtn.disabled = false;
+                verifyBtn.classList.remove('btn-disabled');
+                captureBtn.disabled = false;
+                captureBtn.classList.remove('btn-disabled');
+            }
+        });
+        
+        // Try again button
+        tryAgainBtn.addEventListener('click', () => {
+            // Reset UI
+            resultContainer.style.display = 'none';
+            comparisonContainer.style.display = 'none';
+            capturedImageData = null;
+            verifyBtn.disabled = true;
+            verifyBtn.classList.add('btn-disabled');
+            captureBtn.disabled = false;
+            captureBtn.classList.remove('btn-disabled');
+            statusMessage.textContent = "Please look at the camera for face verification";
+        });
+        
+        // Complete KYC button
+        completeBtn.addEventListener('click', () => {
+            window.location.href = "/";
+        });
+        
+        // Initialize
+        initCamera();
+    </script>
+</body>
+</html> 

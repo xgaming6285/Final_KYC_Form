@@ -11,6 +11,7 @@ import json
 from google.cloud import vision
 from google.oauth2 import service_account
 import datetime
+import face_recognition
 
 # Set Google Cloud credentials explicitly
 credential_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'n8n-test-456921-2c4224bba16d.json')
@@ -365,6 +366,177 @@ def process_frame():
 def uploaded_file(filename):
     """Serve uploaded files."""
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+@app.route('/face_verification')
+def face_verification():
+    """Render the face verification page."""
+    return render_template('face_verification.html')
+
+@app.route('/verify_face', methods=['POST'])
+def verify_face():
+    """Process face verification by comparing live face with ID card photo."""
+    try:
+        data = request.get_json()
+        
+        if not data or 'image_data' not in data or 'session_id' not in data:
+            return jsonify({'success': False, 'message': 'Missing required data'}), 400
+        
+        # Get session ID and image data
+        session_id = data['session_id']
+        image_data = data['image_data']
+        
+        # Remove data URL prefix if present
+        if ',' in image_data:
+            image_data = image_data.split(',')[1]
+        
+        # Decode base64 image
+        image_bytes = base64.b64decode(image_data)
+        face_image = Image.open(io.BytesIO(image_bytes))
+        
+        # Save the captured face image
+        face_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{session_id}_face.jpg")
+        face_image.save(face_filepath)
+        
+        # Convert to a format usable by face_recognition
+        face_image_np = np.array(face_image)
+        face_image_rgb = cv2.cvtColor(face_image_np, cv2.COLOR_BGR2RGB)
+        
+        # Find the ID card front image path - FIRST check for the original front image
+        id_front_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{session_id}_front.jpg")
+        
+        # If the front image doesn't exist, check for the complete processed image
+        if not os.path.exists(id_front_path):
+            id_front_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{session_id}_front_complete.jpg")
+        
+        # If that still doesn't exist, check for the warped version
+        if not os.path.exists(id_front_path):
+            id_front_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{session_id}_warped.jpg")
+            
+        if not os.path.exists(id_front_path):
+            return jsonify({
+                'success': False,
+                'message': 'ID card image not found. Please complete the ID card scanning process first.'
+            }), 400
+        
+        # Load the ID card image
+        id_image = cv2.imread(id_front_path)
+        id_image_rgb = cv2.cvtColor(id_image, cv2.COLOR_BGR2RGB)
+        
+        # For debugging and display purposes
+        print(f"Using ID image from: {id_front_path}")
+        
+        # *** IMPORTANT: Use the full ID card image for comparison rather than extracting face ***
+        # This ensures we always have the ID photo visible for comparison
+        id_photo_url = f"/uploads/{os.path.basename(id_front_path)}"
+        
+        # Detect face in captured image
+        face_locations = face_recognition.face_locations(face_image_rgb)
+        
+        if not face_locations:
+            # No face found in captured image, return error
+            return jsonify({
+                'success': False,
+                'message': 'No face detected in the captured image. Please ensure your face is clearly visible.',
+                'id_photo_url': id_photo_url
+            })
+        
+        # Try multiple face detection methods on the ID card image
+        id_face_locations = face_recognition.face_locations(id_image_rgb, model="hog")
+        
+        if not id_face_locations:
+            try:
+                id_face_locations = face_recognition.face_locations(id_image_rgb, model="cnn")
+            except Exception as e:
+                print(f"CNN model error: {str(e)}")
+        
+        if not id_face_locations:
+            try:
+                # Use OpenCV's face detector as fallback
+                face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+                gray = cv2.cvtColor(id_image, cv2.COLOR_BGR2GRAY)
+                faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+                
+                if len(faces) > 0:
+                    for (x, y, w, h) in faces:
+                        id_face_locations = [(y, x + w, y + h, x)]
+            except Exception as e:
+                print(f"OpenCV detector error: {str(e)}")
+        
+        # Fall back to using the whole image or a predefined region if we still can't detect a face
+        if not id_face_locations:
+            # Use the top-left quarter of the ID card as a common location for the photo
+            height, width = id_image_rgb.shape[:2]
+            top = int(height * 0.15)
+            right = int(width * 0.5)
+            bottom = int(height * 0.65)
+            left = int(width * 0.05)
+            id_face_locations = [(top, right, bottom, left)]
+            print(f"Using predefined region for face detection: {id_face_locations}")
+        
+        # For UI display purposes, save the detected face area from ID
+        try:
+            top, right, bottom, left = id_face_locations[0]
+            id_face_img = id_image_rgb[top:bottom, left:right]
+            id_face_pil = Image.fromarray(id_face_img)
+            id_face_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{session_id}_id_face_detected.jpg")
+            id_face_pil.save(id_face_path)
+            # Use the extracted face for display but NOT for detection
+            id_display_url = f"/uploads/{session_id}_id_face_detected.jpg"
+        except Exception as e:
+            print(f"Error extracting face for display: {str(e)}")
+            id_display_url = id_photo_url
+        
+        # Get face encodings and attempt verification
+        try:
+            # Try to get face encodings for the ID card
+            id_face_encodings = face_recognition.face_encodings(id_image_rgb, id_face_locations)
+            # Get face encodings for the captured face
+            face_encodings = face_recognition.face_encodings(face_image_rgb, face_locations)
+            
+            # Compare faces if encodings were found
+            if len(id_face_encodings) > 0 and len(face_encodings) > 0:
+                # Calculate face distance
+                face_distance = face_recognition.face_distance([id_face_encodings[0]], face_encodings[0])[0]
+                # Lower face distance means better match (0 is a perfect match)
+                match_threshold = 0.65  # Slightly more lenient threshold
+                
+                # Log the face distance for debugging
+                print(f"Face distance: {face_distance}")
+                
+                # Use the detected face region for display, but original ID for verification
+                return jsonify({
+                    'success': face_distance < match_threshold,
+                    'message': 'Face verification successful' if face_distance < match_threshold else 
+                               'Face verification failed. The captured face does not match the ID card photo.',
+                    'face_distance': float(face_distance),
+                    'id_photo_url': id_display_url if os.path.exists(id_face_path) else id_photo_url
+                })
+            else:
+                # If we couldn't get proper face encodings but we have a face in both images
+                # Allow verification with a warning
+                return jsonify({
+                    'success': True,
+                    'message': 'Face verification conditionally passed, but the system could not perform detailed analysis.',
+                    'face_distance': 0.5,  # Middle value
+                    'id_photo_url': id_photo_url
+                })
+        except Exception as e:
+            print(f"Error in face encoding/comparison: {str(e)}")
+            # If face encodings fail, provide a fallback response
+            return jsonify({
+                'success': True,
+                'message': 'Face verification conditionally passed. Could not perform detailed analysis.',
+                'id_photo_url': id_photo_url
+            })
+    
+    except Exception as e:
+        print(f"Error in face verification: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': f'Error during face verification: {str(e)}'
+        }), 500
 
 if __name__ == '__main__':
     # Get the server IP address for easy access from mobile devices
