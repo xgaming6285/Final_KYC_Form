@@ -19,6 +19,7 @@
         .camera-container {
             margin: 20px 0;
             text-align: center;
+            position: relative;
         }
         #video {
             width: 100%;
@@ -30,6 +31,16 @@
         }
         #canvas {
             display: none;
+        }
+        #overlay-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            max-width: 640px;
+            height: auto;
+            z-index: 10;
+            pointer-events: none;
         }
         .controls {
             margin: 20px 0;
@@ -131,6 +142,62 @@
             background-color: #f9f9f9;
             display: none;
         }
+        .success-message {
+            background-color: #e7f9e7;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #a5d6a7;
+            margin: 15px 0;
+            display: none;
+        }
+        .data-saved {
+            font-weight: bold;
+        }
+        #status-message {
+            background-color: #e7f3fe;
+            color: #0d47a1;
+            padding: 12px;
+            border-radius: 5px;
+            margin: 10px 0;
+            text-align: center;
+            font-weight: bold;
+        }
+        #extraction-progress {
+            margin: 15px 0;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        .progress-bar {
+            height: 20px;
+            background-color: #e0e0e0;
+            border-radius: 10px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background-color: #4CAF50;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        .missing-fields {
+            color: #d32f2f;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        .processing-mode {
+            font-weight: bold;
+            color: #0d47a1;
+            margin-bottom: 10px;
+        }
+        .detection-box {
+            position: absolute;
+            border: 2px solid #4CAF50;
+            border-radius: 5px;
+        }
     </style>
 </head>
 <body>
@@ -150,8 +217,20 @@
         </select>
     </div>
     
+    <div id="status-message">Align your ID card within the frame</div>
+    
+    <div id="extraction-progress" style="display: none;">
+        <div class="processing-mode">Live Scanning Mode: <span id="mode-text">Detecting ID Card</span></div>
+        <div>Extracting fields: <span id="extracted-count">0</span>/<span id="total-fields">0</span></div>
+        <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill"></div>
+        </div>
+        <div class="missing-fields" id="missing-fields"></div>
+    </div>
+    
     <div class="camera-container">
         <video id="video" autoplay playsinline></video>
+        <canvas id="overlay-canvas"></canvas>
         <canvas id="canvas"></canvas>
         <img id="capturedImage" alt="Captured ID image">
     </div>
@@ -171,6 +250,12 @@
         </div>
     </div>
 
+    <div id="success-message" class="success-message">
+        <strong>Successfully processed and saved ID data!</strong>
+        <p>The extracted information and image have been saved.</p>
+        <p class="data-saved" id="data-saved-info"></p>
+    </div>
+
     <div id="file-upload-container">
         <h3>Alternative: Upload ID Image</h3>
         <p>Since camera access is restricted, you can upload an image of your ID instead:</p>
@@ -179,7 +264,8 @@
     </div>
     
     <div class="controls">
-        <button id="captureBtn" class="btn">Capture ID Card</button>
+        <button id="manualCaptureBtn" class="btn">Manual Capture</button>
+        <button id="toggleLiveBtn" class="btn">Toggle Live Mode</button>
         <button id="processBtn" class="btn" style="display: none;">Process ID Card</button>
     </div>
     
@@ -204,7 +290,9 @@
         // DOM elements
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
-        const captureBtn = document.getElementById('captureBtn');
+        const overlayCanvas = document.getElementById('overlay-canvas');
+        const manualCaptureBtn = document.getElementById('manualCaptureBtn');
+        const toggleLiveBtn = document.getElementById('toggleLiveBtn');
         const processBtn = document.getElementById('processBtn');
         const capturedImage = document.getElementById('capturedImage');
         const resultsDiv = document.getElementById('results');
@@ -214,6 +302,42 @@
         const fileUploadContainer = document.getElementById('file-upload-container');
         const fileUploadInput = document.getElementById('id-file-upload');
         const processFileBtn = document.getElementById('process-file-btn');
+        const successMessage = document.getElementById('success-message');
+        const dataSavedInfo = document.getElementById('data-saved-info');
+        const statusMessage = document.getElementById('status-message');
+        const extractionProgress = document.getElementById('extraction-progress');
+        const extractedCount = document.getElementById('extracted-count');
+        const totalFields = document.getElementById('total-fields');
+        const progressFill = document.getElementById('progress-fill');
+        const missingFields = document.getElementById('missing-fields');
+        const modeText = document.getElementById('mode-text');
+        
+        // Store session ID for linking front and back images
+        let sessionId = localStorage.getItem('kyc_session_id') || generateUUID();
+        
+        // Variables for live extraction
+        let isLiveMode = true;
+        let processingFrame = false;
+        let animationFrameId = null;
+        let lastProcessTime = 0;
+        let processingInterval = 500; // Process every 500ms for faster detection
+        let extractedData = {};
+        let fieldsToExtract = [];
+        let isCardDetected = false;
+        let stableFrames = 0;
+        let completeExtraction = false;
+        let lastCardPosition = null;
+        let consecutiveFailedDetections = 0;
+        let maxConsecutiveFailures = 10; // After 10 failures, show guidance
+        let lastProcessedSide = null;
+        
+        // Generate UUID for session tracking
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
         
         // Initialize camera
         async function initCamera() {
@@ -236,7 +360,8 @@
                 
                 // Hide video element and capture button
                 video.style.display = 'none';
-                captureBtn.style.display = 'none';
+                manualCaptureBtn.style.display = 'none';
+                toggleLiveBtn.style.display = 'none';
                 
                 // Show file upload alternative
                 fileUploadContainer.style.display = 'block';
@@ -250,102 +375,566 @@
                         facingMode: { ideal: 'environment' },
                         width: { ideal: 1920 },
                         height: { ideal: 1080 }
-                    },
-                    audio: false
+                    }
                 });
                 video.srcObject = stream;
                 
-                // Wait for video metadata to load
+                // Initialize overlay canvas size once video dimensions are available
                 video.onloadedmetadata = () => {
-                    // Set canvas dimensions to match video
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
+                    overlayCanvas.width = video.videoWidth;
+                    overlayCanvas.height = video.videoHeight;
+                    
+                    // Start live processing
+                    if (isLiveMode) {
+                        updateFieldsInfo();
+                        startLiveProcessing();
+                    }
                 };
-                
-                // Hide error if camera starts successfully
-                cameraErrorDiv.style.display = 'none';
-                fileUploadContainer.style.display = 'none';
-                video.style.display = 'block';
-                captureBtn.style.display = 'inline-block';
             } catch (err) {
-                console.error('Error accessing camera:', err);
+                console.error("Error: " + err);
                 
-                // Show error message
+                // Show error and alternative options
                 cameraErrorDiv.style.display = 'block';
-                errorDetails.textContent = `Error accessing camera: ${err.message}. Please ensure camera permissions are granted.`;
+                errorDetails.textContent = `Error accessing camera: ${err.message}`;
                 
                 // Hide video element and capture button
                 video.style.display = 'none';
-                captureBtn.style.display = 'none';
+                manualCaptureBtn.style.display = 'none';
+                toggleLiveBtn.style.display = 'none';
                 
                 // Show file upload alternative
                 fileUploadContainer.style.display = 'block';
             }
         }
         
-        // Process uploaded file
-        processFileBtn.addEventListener('click', () => {
-            const file = fileUploadInput.files[0];
-            if (!file) {
-                alert('Please select a file first');
-                return;
-            }
-            
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                // Display the image
-                capturedImage.src = e.target.result;
-                capturedImage.style.display = 'block';
-                
-                // Hide other elements
-                video.style.display = 'none';
-                fileUploadContainer.style.display = 'none';
-                
-                // Show process button
-                processBtn.style.display = 'inline-block';
-            };
-            reader.readAsDataURL(file);
-        });
-        
-        // Capture image from video
-        captureBtn.addEventListener('click', () => {
-            const context = canvas.getContext('2d');
-            // Draw current video frame to canvas
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
-            // Convert canvas to image
-            capturedImage.src = canvas.toDataURL('image/jpeg', 0.9);
-            capturedImage.style.display = 'block';
-            
-            // Hide video, show process button
-            video.style.display = 'none';
-            captureBtn.style.display = 'none';
-            processBtn.style.display = 'inline-block';
-        });
-        
-        // Process captured image
-        processBtn.addEventListener('click', () => {
+        // Update fields information based on selected document type and side
+        function updateFieldsInfo() {
             const documentType = document.getElementById('document_type').value;
             const side = document.getElementById('side').value;
             
-            // Show loading state
+            // Fetch fields to extract from the server
+            fetch(`/get_fields?document_type=${documentType}&side=${side}`)
+                .then(response => response.json())
+                .then(data => {
+                    fieldsToExtract = data.fields || [];
+                    totalFields.textContent = fieldsToExtract.length;
+                    extractedCount.textContent = '0';
+                    progressFill.style.width = '0%';
+                    missingFields.textContent = fieldsToExtract.join(', ');
+                    
+                    // Reset extracted data
+                    extractedData = {};
+                    fieldsToExtract.forEach(field => {
+                        extractedData[field] = '';
+                    });
+                    
+                    // Show extraction progress
+                    extractionProgress.style.display = 'block';
+                })
+                .catch(error => {
+                    console.error('Error fetching fields:', error);
+                });
+        }
+        
+        // Start live ID card processing
+        function startLiveProcessing() {
+            // Reset animation frame if already running
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            
+            // Set mode flags
+            isLiveMode = true;
+            modeText.textContent = "Detecting ID Card";
+            
+            // Show live mode elements
+            video.style.display = 'block';
+            manualCaptureBtn.style.display = 'inline-block';
+            toggleLiveBtn.textContent = 'Stop Live Mode';
+            capturedImage.style.display = 'none';
+            processBtn.style.display = 'none';
+            resultsDiv.style.display = 'none';
+            
+            // Show status
+            statusMessage.textContent = "Scanning in progress... Keep ID card steady in frame.";
+            extractionProgress.style.display = 'block';
+            
+            // Update side-specific guidance
+            const side = document.getElementById('side').value;
+            if (side === 'front') {
+                statusMessage.textContent = "Align the FRONT of your ID card within the frame";
+            } else {
+                statusMessage.textContent = "Now align the BACK of your ID card within the frame";
+            }
+            
+            // Make sure completeExtraction is reset if we're starting a new side
+            if (document.getElementById('side').value !== lastProcessedSide) {
+                completeExtraction = false;
+                lastProcessedSide = document.getElementById('side').value;
+            }
+            
+            // Animation function to continuously process frames
+            function processVideoFrame() {
+                if (!isLiveMode) return;
+                
+                const now = Date.now();
+                const ctx = overlayCanvas.getContext('2d');
+                ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+                
+                // Check if it's time to process a new frame
+                if (!processingFrame && now - lastProcessTime > processingInterval) {
+                    processingFrame = true;
+                    lastProcessTime = now;
+                    
+                    // Draw current frame to canvas for processing
+                    const processCanvas = document.createElement('canvas');
+                    processCanvas.width = video.videoWidth;
+                    processCanvas.height = video.videoHeight;
+                    const processCtx = processCanvas.getContext('2d');
+                    processCtx.drawImage(video, 0, 0, processCanvas.width, processCanvas.height);
+                    
+                    // Send frame for ID detection and extraction
+                    processFrame(processCanvas)
+                        .then(result => {
+                            processingFrame = false;
+                            
+                            // If card is detected, draw bounding box
+                            if (result.cardDetected) {
+                                isCardDetected = true;
+                                stableFrames++;
+                                lastCardPosition = result.corners;
+                                consecutiveFailedDetections = 0; // Reset failed detections
+                                
+                                // Draw ID card bounding box
+                                ctx.strokeStyle = result.complete ? '#4CAF50' : '#FFC107';
+                                ctx.lineWidth = 3;
+                                ctx.beginPath();
+                                ctx.moveTo(result.corners[0].x, result.corners[0].y);
+                                ctx.lineTo(result.corners[1].x, result.corners[1].y);
+                                ctx.lineTo(result.corners[2].x, result.corners[2].y);
+                                ctx.lineTo(result.corners[3].x, result.corners[3].y);
+                                ctx.closePath();
+                                ctx.stroke();
+                                
+                                // Update extraction status
+                                statusMessage.textContent = result.complete 
+                                    ? "All fields extracted successfully!" 
+                                    : `ID detected! Extracted ${result.extractedCount} of ${fieldsToExtract.length} fields`;
+                                
+                                // Update extraction progress
+                                if (result.data) {
+                                    updateExtractionProgress(result.data);
+                                }
+                                
+                                // If all fields are complete, stop live processing
+                                if (result.complete) {
+                                    completeExtraction = true;
+                                    isLiveMode = false;
+                                    if (animationFrameId) {
+                                        cancelAnimationFrame(animationFrameId);
+                                    }
+                                    
+                                    // Show results
+                                    updateResults(result.data);
+                                }
+                            } else {
+                                // Increment failed detections counter
+                                consecutiveFailedDetections++;
+                                
+                                // Guide the user if we've had several failed detection attempts
+                                if (consecutiveFailedDetections >= maxConsecutiveFailures) {
+                                    // Draw guide rectangle in the center 
+                                    const centerX = overlayCanvas.width / 2;
+                                    const centerY = overlayCanvas.height / 2;
+                                    const width = overlayCanvas.width * 0.7;  // 70% of screen width
+                                    const height = width * 0.6;  // ID card aspect ratio approximately 3:2
+                                    
+                                    // Draw guide rectangle
+                                    ctx.strokeStyle = '#FFC107';  // Yellow
+                                    ctx.lineWidth = 2;
+                                    ctx.setLineDash([5, 5]);  // Dashed line
+                                    ctx.strokeRect(
+                                        centerX - width/2,
+                                        centerY - height/2,
+                                        width,
+                                        height
+                                    );
+                                    ctx.setLineDash([]);  // Reset to solid line
+                                    
+                                    // Add text guide
+                                    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                                    ctx.fillRect(centerX - width/2, centerY + height/2 + 10, width, 60);
+                                    ctx.font = '16px Arial';
+                                    ctx.fillStyle = 'white';
+                                    ctx.textAlign = 'center';
+                                    ctx.fillText('Position ID card within this frame', centerX, centerY + height/2 + 35);
+                                    ctx.fillText('Ensure good lighting and minimal glare', centerX, centerY + height/2 + 60);
+                                    
+                                    // Update status message
+                                    statusMessage.textContent = "No ID card detected. Position card within the guide frame.";
+                                    
+                                    // Reset counter to avoid constant overlay
+                                    if (consecutiveFailedDetections > maxConsecutiveFailures * 2) {
+                                        consecutiveFailedDetections = maxConsecutiveFailures;
+                                    }
+                                }
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error processing frame:', error);
+                            processingFrame = false;
+                        });
+                } else if (isCardDetected && lastCardPosition) {
+                    // Continue showing the last detected card position
+                    ctx.strokeStyle = completeExtraction ? '#4CAF50' : '#FFC107';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(lastCardPosition[0].x, lastCardPosition[0].y);
+                    ctx.lineTo(lastCardPosition[1].x, lastCardPosition[1].y);
+                    ctx.lineTo(lastCardPosition[2].x, lastCardPosition[2].y);
+                    ctx.lineTo(lastCardPosition[3].x, lastCardPosition[3].y);
+                    ctx.closePath();
+                    ctx.stroke();
+                }
+                
+                // Continue animation loop
+                if (isLiveMode) {
+                    animationFrameId = requestAnimationFrame(processVideoFrame);
+                }
+            }
+            
+            // Start processing
+            animationFrameId = requestAnimationFrame(processVideoFrame);
+        }
+        
+        // Process a video frame to detect ID card and extract text
+        async function processFrame(canvas) {
+            // Get document type and side
+            const documentType = document.getElementById('document_type').value;
+            const side = document.getElementById('side').value;
+            
+            // Convert canvas to blob
+            const blob = await new Promise(resolve => {
+                canvas.toBlob(resolve, 'image/jpeg', 0.8);
+            });
+            
+            // Create form data
+            const formData = new FormData();
+            formData.append('image', blob, 'frame.jpg');
+            formData.append('document_type', documentType);
+            formData.append('side', side);
+            formData.append('session_id', sessionId);
+            
+            try {
+                // Send to server for processing
+                const response = await fetch('/process_frame', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                // If there's a debug image and detection failed, show it temporarily
+                if (!data.cardDetected && data.debug_image) {
+                    // Show the debug image briefly to help user see what the camera sees
+                    const debugImg = new Image();
+                    debugImg.src = data.debug_image;
+                    debugImg.onload = () => {
+                        const ctx = overlayCanvas.getContext('2d');
+                        ctx.drawImage(debugImg, 0, 0, overlayCanvas.width, overlayCanvas.height);
+                        
+                        // Add text overlay explaining the issue
+                        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                        ctx.fillRect(10, 10, overlayCanvas.width - 20, 60);
+                        ctx.font = '16px Arial';
+                        ctx.fillStyle = 'white';
+                        ctx.fillText(data.message || 'No ID card detected', 20, 40);
+                        ctx.fillText('Adjust lighting or try holding card more steady', 20, 60);
+                        
+                        // Clear after 2 seconds
+                        setTimeout(() => {
+                            ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+                        }, 2000);
+                    };
+                }
+                
+                // Update extracted fields based on current detection
+                if (data.cardDetected && data.data) {
+                    updateExtractionProgress(data.data);
+                    
+                    // Stop live processing and switch to back side if extraction is complete
+                    if (data.complete && data.next_step === 'back') {
+                        // Cancel the animation frame
+                        if (animationFrameId) {
+                            cancelAnimationFrame(animationFrameId);
+                            animationFrameId = null;
+                        }
+                        isLiveMode = false;
+                        toggleLiveBtn.textContent = 'Start Live Mode';
+                        
+                        // Show a message to the user
+                        statusMessage.textContent = "Front side complete! Please flip your ID to scan the back side.";
+                        
+                        // Set a timeout to change to back side
+                        setTimeout(() => {
+                            // Change the side selector to 'back'
+                            const sideSelector = document.getElementById('side');
+                            sideSelector.value = 'back';
+                            
+                            // Trigger the change event to update fields
+                            sideSelector.dispatchEvent(new Event('change'));
+                            
+                            // Reset camera to scan again
+                            resetCamera();
+                            
+                            // Show guidance
+                            statusMessage.textContent = "Ready to scan the BACK of your ID card";
+                            
+                            // Explicitly start live mode for back scanning
+                            isLiveMode = true;
+                            toggleLiveBtn.textContent = 'Stop Live Mode';
+                            startLiveProcessing();
+                        }, 2000);
+                    } else if (data.complete && data.next_step === 'face') {
+                        // Cancel the animation frame
+                        if (animationFrameId) {
+                            cancelAnimationFrame(animationFrameId);
+                            animationFrameId = null;
+                        }
+                        isLiveMode = false;
+                        toggleLiveBtn.textContent = 'Start Live Mode';
+                        
+                        // Show success message
+                        statusMessage.textContent = "ID Card fully scanned! Proceeding to face verification...";
+                        
+                        // Display success message
+                        successMessage.style.display = 'block';
+                        dataSavedInfo.textContent = `ID Card data successfully extracted and saved.`;
+                        
+                        // Check if we need to redirect to scan the back side
+                        if (data.next_step === 'back') {
+                            // Show a message to the user
+                            alert('Front side complete! Please scan the back side of your ID card next.');
+                            
+                            // Change the side selector to 'back'
+                            const sideSelector = document.getElementById('side');
+                            sideSelector.value = 'back';
+                            
+                            // Trigger the change event to update fields
+                            sideSelector.dispatchEvent(new Event('change'));
+                            
+                            // Reset camera for back side scan
+                            resetCamera();
+                        } else if (data.next_step === 'face') {
+                            // Show a message that we'll proceed to face verification
+                            alert('ID Card fully scanned! Proceeding to face verification...');
+                            
+                            // Show success message
+                            statusMessage.textContent = "ID Card fully scanned! Proceeding to face verification...";
+                            
+                            // Set a timeout to redirect to face verification
+                            setTimeout(() => {
+                                // Redirect to face verification page
+                                window.location.href = "/detect";
+                            }, 1000);
+                        }
+                        
+                        // Save the warped image
+                        if (data.warped_image) {
+                            const warpedImg = new Image();
+                            warpedImg.src = data.warped_image;
+                            warpedImg.onload = () => {
+                                capturedImage.src = data.warped_image;
+                                capturedImage.style.display = 'block';
+                                video.style.display = 'none';
+                                manualCaptureBtn.style.display = 'none';
+                                processBtn.style.display = 'inline-block';
+                                // Update results with extracted data
+                                updateResults(data.data);
+                            };
+                            warpedImg.onerror = () => {
+                                console.error('Error loading warped image:', data.warped_image);
+                                // Continue showing video if image doesn't load
+                                video.style.display = 'block';
+                            };
+                        }
+                    }
+                }
+                
+                return data;
+            } catch (error) {
+                console.error('Error processing frame:', error);
+                return {
+                    cardDetected: false,
+                    message: 'Error processing frame: ' + error.message
+                };
+            }
+        }
+        
+        // Update extraction progress UI
+        function updateExtractionProgress(data) {
+            if (!data) return;
+            
+            // Update extraction progress
+            let extractedFieldsCount = 0;
+            let missingFieldsList = [];
+            let hasMRZ = false;
+            
+            // First check if we have MRZ data on back side
+            const side = document.getElementById('side').value;
+            for (const [field, value] of Object.entries(data)) {
+                // Check if any field contains MRZ data (ID number in correct format)
+                if (side === 'back' && value && value.includes('IDBGR')) {
+                    hasMRZ = true;
+                    break;
+                }
+            }
+            
+            // Check which fields have been extracted
+            for (const [field, value] of Object.entries(data)) {
+                if (value && value.trim()) {
+                    extractedFieldsCount++;
+                    // Update our tracked data
+                    extractedData[field] = value;
+                } else {
+                    // For the back side, we don't need to show Name/Име as missing
+                    // or if we found MRZ data, we're good
+                    if (side === 'back' && (field === 'Name/Име' || 
+                        (field === 'Surname/Фамилия' && hasMRZ))) {
+                        extractedFieldsCount++; // Count as extracted for back side
+                    } else {
+                        missingFieldsList.push(field);
+                    }
+                }
+            }
+            
+            // Update UI
+            extractedCount.textContent = extractedFieldsCount;
+            const percentage = (extractedFieldsCount / fieldsToExtract.length) * 100;
+            progressFill.style.width = `${percentage}%`;
+            
+            // Update missing fields text
+            if (missingFieldsList.length > 0) {
+                missingFields.textContent = `Missing fields: ${missingFieldsList.join(', ')}`;
+                modeText.textContent = "Extracting Data";
+            } else {
+                missingFields.textContent = "All fields extracted!";
+                modeText.textContent = "Extraction Complete";
+            }
+        }
+        
+        // Update results table with extracted data
+        function updateResults(data) {
+            // Clear previous results
+            resultsTable.innerHTML = '';
+            
+            // Populate table with results
+            for (const [field, value] of Object.entries(data)) {
+                if (value) {
+                    const row = document.createElement('tr');
+                    
+                    const fieldCell = document.createElement('td');
+                    fieldCell.textContent = field;
+                    
+                    const valueCell = document.createElement('td');
+                    valueCell.textContent = value;
+                    
+                    row.appendChild(fieldCell);
+                    row.appendChild(valueCell);
+                    resultsTable.appendChild(row);
+                }
+            }
+            
+            // Show results
+            resultsDiv.style.display = 'block';
+        }
+        
+        // Capture a single frame
+        function captureFrame() {
+            const ctx = canvas.getContext('2d');
+            
+            // Set canvas dimensions to match video
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            
+            // Draw video frame to canvas
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // Show captured image
+            capturedImage.src = canvas.toDataURL('image/jpeg');
+            capturedImage.style.display = 'block';
+            video.style.display = 'none';
+            overlayCanvas.style.display = 'none';
+            
+            // Show process button and hide capture button
+            manualCaptureBtn.style.display = 'none';
+            processBtn.style.display = 'inline-block';
+            
+            return capturedImage.src;
+        }
+        
+        // Manual capture button
+        manualCaptureBtn.addEventListener('click', () => {
+            // Stop live processing
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            isLiveMode = false;
+            toggleLiveBtn.textContent = 'Start Live Mode';
+            
+            // Capture the frame
+            captureFrame();
+        });
+        
+        // Toggle live mode button
+        toggleLiveBtn.addEventListener('click', () => {
+            if (isLiveMode) {
+                // Stop live processing
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
+                }
+                isLiveMode = false;
+                toggleLiveBtn.textContent = 'Start Live Mode';
+                statusMessage.textContent = "Live mode paused. Click 'Start Live Mode' to resume.";
+            } else {
+                // Start live processing
+                isLiveMode = true;
+                toggleLiveBtn.textContent = 'Stop Live Mode';
+                // Reset extraction status
+                completeExtraction = false;
+                startLiveProcessing();
+            }
+        });
+        
+        // Process button for manually captured images
+        processBtn.addEventListener('click', () => {
             processBtn.disabled = true;
             processBtn.innerText = 'Processing...';
             
-            // Create form data with image
-            const formData = new FormData();
-            formData.append('document_type', documentType);
-            formData.append('side', side);
-            formData.append('image_data', capturedImage.src);
+            // Get form values
+            const documentType = document.getElementById('document_type').value;
+            const side = document.getElementById('side').value;
             
-            // Send image to server
+            // Store session ID for linking front and back sides
+            localStorage.setItem('kyc_session_id', sessionId);
+            
+            // Send image to server for processing
             fetch('/process_id', {
                 method: 'POST',
-                body: formData
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    'image_data': capturedImage.src,
+                    'document_type': documentType,
+                    'side': side,
+                    'session_id': sessionId
+                })
             })
             .then(response => response.json())
             .then(data => {
-                // Reset button
                 processBtn.disabled = false;
                 processBtn.innerText = 'Process ID Card';
                 
@@ -370,7 +959,39 @@
                         }
                     }
                     
+                    // Display success message with saved file information
+                    successMessage.style.display = 'block';
+                    dataSavedInfo.textContent = `Data saved to: ${data.data_file || 'extracted_data.json'} and image saved to: ${data.image_path || 'uploads folder'}`;
+                    
                     resultsDiv.style.display = 'block';
+                    
+                    // Check if we need to redirect to scan the back side
+                    if (data.next_step === 'back') {
+                        // Show a message to the user
+                        alert('Front side complete! Please scan the back side of your ID card next.');
+                        
+                        // Change the side selector to 'back'
+                        const sideSelector = document.getElementById('side');
+                        sideSelector.value = 'back';
+                        
+                        // Trigger the change event to update fields
+                        sideSelector.dispatchEvent(new Event('change'));
+                        
+                        // Reset camera for back side scan
+                        resetCamera();
+                    } else if (data.next_step === 'face') {
+                        // Show a message that we'll proceed to face verification
+                        alert('ID Card fully scanned! Proceeding to face verification...');
+                        
+                        // Show success message
+                        statusMessage.textContent = "ID Card fully scanned! Proceeding to face verification...";
+                        
+                        // Set a timeout to redirect to face verification
+                        setTimeout(() => {
+                            // Redirect to face verification page
+                            window.location.href = "/detect";
+                        }, 1000);
+                    }
                 } else {
                     alert('Error: ' + (data.error || 'Failed to process ID card'));
                 }
@@ -383,17 +1004,143 @@
             });
         });
         
+        // Process uploaded file
+        processFileBtn.addEventListener('click', () => {
+            const file = fileUploadInput.files[0];
+            if (!file) {
+                alert('Please select a file to upload');
+                return;
+            }
+            
+            processFileBtn.disabled = true;
+            processFileBtn.innerText = 'Processing...';
+            
+            // Get form values
+            const documentType = document.getElementById('document_type').value;
+            const side = document.getElementById('side').value;
+            
+            // Store session ID for linking front and back sides
+            localStorage.setItem('kyc_session_id', sessionId);
+            
+            // Create form data
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('document_type', documentType);
+            formData.append('side', side);
+            formData.append('session_id', sessionId);
+            
+            // Send to server
+            fetch('/process_id', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                processFileBtn.disabled = false;
+                processFileBtn.innerText = 'Process Uploaded Image';
+                
+                // Clear previous results
+                resultsTable.innerHTML = '';
+                
+                if (data.success) {
+                    // Populate table with results
+                    for (const [field, value] of Object.entries(data.data)) {
+                        if (value) {
+                            const row = document.createElement('tr');
+                            
+                            const fieldCell = document.createElement('td');
+                            fieldCell.textContent = field;
+                            
+                            const valueCell = document.createElement('td');
+                            valueCell.textContent = value;
+                            
+                            row.appendChild(fieldCell);
+                            row.appendChild(valueCell);
+                            resultsTable.appendChild(row);
+                        }
+                    }
+                    
+                    // Display success message with saved file information
+                    successMessage.style.display = 'block';
+                    dataSavedInfo.textContent = `Data saved to: ${data.data_file || 'extracted_data.json'} and image saved to: ${data.image_path || 'uploads folder'}`;
+                    
+                    resultsDiv.style.display = 'block';
+                    
+                    // Check if we need to redirect to scan the back side
+                    if (data.next_step === 'back') {
+                        // Show a message to the user
+                        alert('Front side complete! Please scan the back side of your ID card next.');
+                        
+                        // Change the side selector to 'back'
+                        const sideSelector = document.getElementById('side');
+                        sideSelector.value = 'back';
+                        
+                        // Trigger the change event to update fields
+                        sideSelector.dispatchEvent(new Event('change'));
+                        
+                        // Reset camera for back side scan
+                        resetCamera();
+                    } else if (data.next_step === 'face') {
+                        // Show a message that we'll proceed to face verification
+                        alert('ID Card fully scanned! Proceeding to face verification...');
+                        
+                        // Show success message
+                        statusMessage.textContent = "ID Card fully scanned! Proceeding to face verification...";
+                        
+                        // Set a timeout to redirect to face verification
+                        setTimeout(() => {
+                            // Redirect to face verification page
+                            window.location.href = "/detect";
+                        }, 1000);
+                    }
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to process ID card'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error: ' + error.message);
+                processFileBtn.disabled = false;
+                processFileBtn.innerText = 'Process Uploaded Image';
+            });
+        });
+        
+        // Document type or side change event
+        document.getElementById('document_type').addEventListener('change', updateFieldsInfo);
+        document.getElementById('side').addEventListener('change', updateFieldsInfo);
+        
         // Add reset button to try again
         const resetCamera = () => {
             video.style.display = 'block';
             capturedImage.style.display = 'none';
-            captureBtn.style.display = 'inline-block';
+            overlayCanvas.style.display = 'block';
+            manualCaptureBtn.style.display = 'inline-block';
+            toggleLiveBtn.style.display = 'inline-block';
+            toggleLiveBtn.textContent = 'Stop Live Mode';
             processBtn.style.display = 'none';
             resultsDiv.style.display = 'none';
             fileUploadContainer.style.display = 'none';
+            successMessage.style.display = 'none';
             
-            // Try to reinitialize camera
+            // Reset extraction status
+            isCardDetected = false;
+            stableFrames = 0;
+            completeExtraction = false;
+            lastCardPosition = null;
+            isLiveMode = true; // Ensure live mode is enabled
+            
+            // Update fields info
+            updateFieldsInfo();
+            
+            // Try to reinitialize camera and start live processing
             initCamera();
+            
+            // Explicitly restart live processing after a short delay
+            setTimeout(() => {
+                if (isLiveMode) {
+                    startLiveProcessing();
+                }
+            }, 500);
         };
         
         // Create reset button

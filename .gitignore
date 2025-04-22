@@ -1,4 +1,58 @@
+# Credentials and sensitive files
 /client_secret_1085616132789-5qddvpqdqcq7nb0guvsoq63ksbldnadm.apps.googleusercontent.com.json
 /n8n-test-456921-2c4224bba16d.json
+*.json.backup
+
+# SSL certificates
 /ssl
+
+# Upload directories
 /uploads
+id_card_*.jpg
+
+# Extracted data files
+extracted_data_*.json
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+
+# Test cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Image files except for example ID cards
+*.png
+*.jpg
+*.jpeg
+!Bulgarian_Identity_card_-_back_(2024).png
+!New_Bulgarian_ID_card_(front).png

@@ -66,10 +66,10 @@ def map_text_to_fields(text, fields_to_extract):
         "Father's name/Презиме": [r"(?:Презиме|Father's name)[\s:]+([A-ZА-Я]+)"],
         "Nationality/Гражданство": [r"(?:Гражданство|Nationality)[\s:]+([A-ZА-Я/]+)"],
         "Date of birth/Дата на раждане": [r"(?:Дата на раждане|Date of birth)[\s:]+(\d{2}\.\d{2}\.\d{4})", r"\b(\d{2}\.\d{2}\.\d{4})\b"],
-        "Sex/Пол": [r"(?:Пол|Sex)[\s:]+([МЖ/MF]+)"],
+        "Sex/Пол": [r"(?:Пол|Sex)[\s:]+([МЖ/MF]+)", r"(?:Пол/[Ss]ex\s+)([МЖ]/[MF])", r"\b([МЖ]/[MF])\b", r"(?:Пол|Sex)/(?:[Ѕs]ex|[Ss]ех)\s*([МЖ]/[MF])", r"(?:[Пп]ол|[Ss]ex)/\S+\s+([МЖ]/[MF])", r"ETH/Personal[^0-9]+([МЖ]/[MF])", r"[Mm]on/[Ss]ex\s+([МM]/[МM])", r"Пол/ѕеx\s+([МЖ]/[МM])", r"[Пп]ол\s*[:/]\s*[sS]ex\s+([МЖ]/[MFmf])", r"\b([МM]/[МM])\b"],
         "Personal No/ЕГН": [r"(?:ЕГН|Personal No)[\s:]+(\d{10})", r"\b(\d{10})\b"],
         "Date of expiry/Валидност": [r"(?:Валидност|Date of expiry|expiry)[\s:]+(\d{2}\.\d{2}\.\d{4})", r"(?:Валидност|expiry)[\s:]+(\d{2}\.\d{2}\.\d{4})"],
-        "Document number/№ на документа": [r"(?:№ на документа|Document number)[\s:]+([A-Z0-9]+)", r"№\s*([A-Z0-9]+)"],
+        "Document number/№ на документа": [r"(?:№ на документа|Document number)[\s:]+([A-Z0-9]+)", r"№\s*([A-Z0-9]+)", r"([A-Z]{2}\d+)\b", r"(?:№ на документа|Document number)[^\n]*?([A-Z]{2}\s*\d+)", r"\b([A-Z]{2}\s*\d{7})\b", r"[Аа][Аа]\s*(\d{7})", r"[Аа][Аа](\d{7})", r"\b(А\s*А\s*\d{7})\b", r"\bАА\s*(\d{7})\b", r"\b(А А \d{7})\b", r"[^a-zA-Z0-9](AA\d{7})[^a-zA-Z0-9]", r"\b(AA\s*\d{7})\b", r"(?:Document number|№ на документа)[^\n]*?\s*([АA]{2}\s*\d{7})", r"\b([АA]{2}\s*\d{7})\b"],
         "Place of birth/Място на раждане": [r"(?:Място на раждане|Place of birth)[\s:]+([A-ZА-Я]+)"],
         "Residence/Постоянен адрес": [r"(?:Постоянен адрес|Residence)[\s:]+(.+)"],
         "Height/Ръст": [r"(?:Ръст|Height)[\s:]+(\d{3})"],
@@ -216,6 +216,32 @@ def map_text_to_fields(text, fields_to_extract):
                     filled_data["Surname/Фамилия"] = surname
                     print(f'Extracted Surname from MRZ: {filled_data["Surname/Фамилия"]}')
     
+    # Add special handling for document number
+    if "Document number/№ на документа" in fields_to_extract and not filled_data["Document number/№ на документа"]:
+        # Look for patterns like AA1234567 (2 letters followed by digits)
+        # This handles both Latin and Cyrillic characters
+        doc_number_patterns = [
+            r'\b([A-Z]{2}\d{7})\b',
+            r'\b([АA][АA]\d{7})\b',  # Mixed Cyrillic/Latin
+            r'\b(А\s*А\s*\d{7})\b',  # Cyrillic with spaces
+            r'\b(A\s*A\s*\d{7})\b',  # Latin with spaces
+            r'\b(АА\d{7})\b',        # Cyrillic
+            r'\b(AA\d{7})\b'         # Latin
+        ]
+        
+        for pattern in doc_number_patterns:
+            for line in lines:
+                matches = re.search(pattern, line)
+                if matches:
+                    doc_number = matches.group(1)
+                    # Standardize to Latin AA format
+                    doc_number = doc_number.replace('А', 'A').replace(' ', '')
+                    print(f"Found Document number using standalone pattern: {doc_number}")
+                    filled_data["Document number/№ на документа"] = doc_number
+                    break
+            if filled_data["Document number/№ на документа"]:
+                break
+                
     # Count how many fields were successfully filled
     filled_count = sum(1 for value in filled_data.values() if value.strip())
     
