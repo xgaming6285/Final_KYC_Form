@@ -1,272 +1,281 @@
 import streamlit as st
-import requests
-import base64
-from PIL import Image
-import io
-import cv2
-import numpy as np
 import os
 import uuid
+import cv2
+import numpy as np
+from PIL import Image
+import io
+import base64
+import face_recognition
+import sys
 import json
-from datetime import datetime
+import tempfile
 
-# Set page config
-st.set_page_config(
-    page_title="KYC Document Verification",
-    page_icon="🆔",
-    layout="wide"
-)
+# Import functionality from web_server.py
+# Note: We're importing the module, not running the Flask app
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-# Create upload folder if it doesn't exist
-upload_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
-os.makedirs(upload_folder, exist_ok=True)
+# Try to use our more robust IDProcessorWeb class, fall back to original if not available
+try:
+    from id_processor_web import IDProcessorWeb
+    id_processor = IDProcessorWeb()
+    st.sidebar.success("Using IDProcessorWeb with error handling")
+except ImportError:
+    try:
+        from id_processor import IDProcessor
+        id_processor = IDProcessor()
+        st.sidebar.success("Using original IDProcessor")
+    except ImportError:
+        st.error("ID Processor module not found. Please check that id_processor.py is available.")
+        st.stop()
 
-# Session state management
-if 'session_id' not in st.session_state:
-    st.session_state.session_id = str(uuid.uuid4())
-if 'current_step' not in st.session_state:
-    st.session_state.current_step = 'front'
-if 'extracted_data' not in st.session_state:
-    st.session_state.extracted_data = {}
+# Create uploads directory for storing temporary files
+UPLOAD_FOLDER = os.path.join(tempfile.gettempdir(), 'streamlit_uploads')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Function to process image without using face_recognition
-def process_id_card(image, document_type='bulgarian_id', side='front'):
-    """Process ID card image and extract text"""
-    # Save image to file
-    filename = f"{st.session_state.session_id}_{side}.jpg"
-    filepath = os.path.join(upload_folder, filename)
+def save_extracted_data(document_type, side, extracted_data):
+    """Save the extracted data to a JSON file with timestamp."""
+    import datetime
+    # Create a timestamp for the filename
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"extracted_data_{timestamp}.json"
+    filepath = os.path.join(UPLOAD_FOLDER, filename)
     
-    if isinstance(image, np.ndarray):
-        # Save OpenCV image
-        cv2.imwrite(filepath, cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
+    # If file exists already, load its contents, otherwise initialize a new dictionary
+    if os.path.exists(filepath):
+        with open(filepath, 'r', encoding='utf-8') as f:
+            data = json.load(f)
     else:
-        # Save PIL image
-        image.save(filepath)
+        data = {
+            "document_type": document_type,
+            "front_side": {},
+            "back_side": {}
+        }
     
-    # Use OpenCV to detect ID card
-    image_np = np.array(image)
-    if len(image_np.shape) == 2:  # If grayscale, convert to RGB
-        image_np = cv2.cvtColor(image_np, cv2.COLOR_GRAY2RGB)
-    elif image_np.shape[2] == 4:  # If RGBA, convert to RGB
-        image_np = cv2.cvtColor(image_np, cv2.COLOR_RGBA2RGB)
+    # Remove document_type from extracted_data if it exists
+    if "document_type" in extracted_data:
+        del extracted_data["document_type"]
     
-    gray = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
-    _, threshold = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-    
-    # Extract text using OCR (simplified for Streamlit)
-    # Note: In a production environment, you would connect this to a proper OCR service
-    # like Google Cloud Vision or a local Tesseract implementation
-    
-    # For demo purposes, let's fake some data based on the document type and side
-    extracted_data = {}
-    
-    if document_type == 'bulgarian_id':
-        if side == 'front':
-            extracted_data = {
-                "identity_number": "1234567890",
-                "given_name": "John",
-                "surname": "Doe",
-                "nationality": "Bulgarian",
-                "date_of_birth": "01.01.1990",
-                "expiry_date": "01.01.2030"
-            }
-        else:  # back side
-            extracted_data = {
-                "issuing_authority": "Ministry of Interior",
-                "issuing_date": "01.01.2020",
-                "address": "123 Main St, Sofia, Bulgaria"
-            }
-    
-    # In a real implementation, you would use OCR here
-    
-    # Store extracted data in session state
-    if side == 'front':
-        st.session_state.extracted_data['front'] = extracted_data
+    # Update the data with new extracted information
+    if side == "front":
+        data["front_side"] = extracted_data
     else:
-        st.session_state.extracted_data['back'] = extracted_data
+        data["back_side"] = extracted_data
     
-    return extracted_data, filepath
+    # Save the data
+    with open(filepath, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
+    
+    return filename, filepath
 
-def verify_face(selfie_image, id_image):
-    """Basic face verification without using face_recognition"""
-    # Convert images to OpenCV format
-    selfie_np = np.array(selfie_image)
-    id_np = np.array(id_image)
+def main():
+    st.set_page_config(page_title="ID Card Processor", layout="wide")
+    st.title("ID Card Processing System")
     
-    # Use OpenCV's Haar cascade for basic face detection
-    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+    # Sidebar for navigation
+    st.sidebar.title("Navigation")
+    page = st.sidebar.selectbox("Choose a page", ["ID Scanning", "Face Verification", "About"])
     
-    # Detect faces in both images
-    selfie_gray = cv2.cvtColor(selfie_np, cv2.COLOR_RGB2GRAY)
-    id_gray = cv2.cvtColor(id_np, cv2.COLOR_RGB2GRAY)
-    
-    selfie_faces = face_cascade.detectMultiScale(selfie_gray, 1.1, 4)
-    id_faces = face_cascade.detectMultiScale(id_gray, 1.1, 4)
-    
-    if len(selfie_faces) == 0:
-        return False, "No face detected in the selfie"
-    
-    if len(id_faces) == 0:
-        return False, "No face detected in the ID card"
-    
-    # In a real system, you would use a facial recognition model here
-    # Without face_recognition, we can only verify that faces were detected
-    # Return True to simulate successful verification for demo purposes
-    
-    return True, "Face detected in both images. Manual verification required."
-
-# Main app UI
-st.title("KYC Document Verification")
-
-# Step indicator
-st.sidebar.header("Verification Progress")
-step_status = {
-    'front': '🔄' if st.session_state.current_step == 'front' else ('✅' if 'front' in st.session_state.extracted_data else '⬜'),
-    'back': '🔄' if st.session_state.current_step == 'back' else ('✅' if 'back' in st.session_state.extracted_data else '⬜'),
-    'face': '🔄' if st.session_state.current_step == 'face' else ('✅' if 'face_verified' in st.session_state else '⬜'),
-    'complete': '🔄' if st.session_state.current_step == 'complete' else ('✅' if 'complete' in st.session_state else '⬜')
-}
-
-st.sidebar.write(f"{step_status['front']} Front of ID Card")
-st.sidebar.write(f"{step_status['back']} Back of ID Card")
-st.sidebar.write(f"{step_status['face']} Face Verification")
-st.sidebar.write(f"{step_status['complete']} Completed")
-
-# Display current step
-if st.session_state.current_step == 'front':
-    st.header("Step 1: Scan Front of ID Card")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        uploaded_file = st.file_uploader("Upload front of ID card", type=['jpg', 'jpeg', 'png'])
-        if uploaded_file is not None:
-            image = Image.open(uploaded_file)
-            st.image(image, caption="Uploaded Image", use_column_width=True)
-            
-            if st.button("Process Front Side"):
-                with st.spinner("Processing..."):
-                    extracted_data, filepath = process_id_card(image, side='front')
-                    
-                    # Show extracted data
-                    st.success("ID Front processed successfully!")
-                    st.json(extracted_data)
-                    
-                    # Move to next step
-                    st.session_state.current_step = 'back'
-                    st.rerun()
-    
-    with col2:
-        st.write("Instructions:")
-        st.write("1. Upload a clear image of the front of your ID card")
-        st.write("2. Make sure all corners are visible")
-        st.write("3. Avoid glare on the document")
-        st.write("4. Image should be in good lighting")
-
-elif st.session_state.current_step == 'back':
-    st.header("Step 2: Scan Back of ID Card")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        uploaded_file = st.file_uploader("Upload back of ID card", type=['jpg', 'jpeg', 'png'])
-        if uploaded_file is not None:
-            image = Image.open(uploaded_file)
-            st.image(image, caption="Uploaded Image", use_column_width=True)
-            
-            if st.button("Process Back Side"):
-                with st.spinner("Processing..."):
-                    extracted_data, filepath = process_id_card(image, side='back')
-                    
-                    # Show extracted data
-                    st.success("ID Back processed successfully!")
-                    st.json(extracted_data)
-                    
-                    # Move to next step
-                    st.session_state.current_step = 'face'
-                    st.rerun()
-    
-    with col2:
-        st.write("Instructions:")
-        st.write("1. Upload a clear image of the back of your ID card")
-        st.write("2. Make sure all corners are visible")
-        st.write("3. Avoid glare on the document")
-        st.write("4. Image should be in good lighting")
-        
-        # Option to go back
-        if st.button("← Back to Front Side"):
-            st.session_state.current_step = 'front'
-            st.rerun()
-
-elif st.session_state.current_step == 'face':
-    st.header("Step 3: Face Verification")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        uploaded_file = st.file_uploader("Take or upload a selfie", type=['jpg', 'jpeg', 'png'])
-        if uploaded_file is not None:
-            selfie_image = Image.open(uploaded_file)
-            st.image(selfie_image, caption="Your Selfie", use_column_width=True)
-            
-            if st.button("Verify Face"):
-                with st.spinner("Verifying..."):
-                    # Get ID card image from the front side
-                    id_filepath = os.path.join(upload_folder, f"{st.session_state.session_id}_front.jpg")
-                    
-                    if os.path.exists(id_filepath):
-                        id_image = Image.open(id_filepath)
-                        
-                        # Verify face
-                        success, message = verify_face(selfie_image, id_image)
-                        
-                        if success:
-                            st.success(message)
-                            st.session_state.face_verified = True
-                            st.session_state.current_step = 'complete'
-                            st.rerun()
-                        else:
-                            st.error(message)
-                    else:
-                        st.error("ID card image not found. Please complete the previous steps first.")
-    
-    with col2:
-        st.write("Instructions:")
-        st.write("1. Take a clear photo of your face")
-        st.write("2. Ensure good lighting")
-        st.write("3. Look directly at the camera")
-        st.write("4. Remove sunglasses or other items covering your face")
-        
-        # Option to go back
-        if st.button("← Back to ID Back Side"):
-            st.session_state.current_step = 'back'
-            st.rerun()
-
-elif st.session_state.current_step == 'complete':
-    st.header("Verification Complete!")
-    
-    st.success("Your identity has been verified successfully!")
-    
-    # Display combined information
-    st.subheader("Extracted Information")
-    
-    all_data = {}
-    if 'front' in st.session_state.extracted_data:
-        all_data.update(st.session_state.extracted_data['front'])
-    if 'back' in st.session_state.extracted_data:
-        all_data.update(st.session_state.extracted_data['back'])
-    
-    st.json(all_data)
-    
-    # Option to start over
-    if st.button("Start New Verification"):
-        # Reset session state
+    # Initialize session state for tracking progress
+    if "session_id" not in st.session_state:
         st.session_state.session_id = str(uuid.uuid4())
-        st.session_state.current_step = 'front'
-        st.session_state.extracted_data = {}
-        if 'face_verified' in st.session_state:
-            del st.session_state.face_verified
-        if 'complete' in st.session_state:
-            del st.session_state.complete
+    if "front_processed" not in st.session_state:
+        st.session_state.front_processed = False
+    if "back_processed" not in st.session_state:
+        st.session_state.back_processed = False
+    if "front_data" not in st.session_state:
+        st.session_state.front_data = {}
+    if "back_data" not in st.session_state:
+        st.session_state.back_data = {}
+    if "front_image_path" not in st.session_state:
+        st.session_state.front_image_path = None
+    if "back_image_path" not in st.session_state:
+        st.session_state.back_image_path = None
+    
+    # ID Scanning Page
+    if page == "ID Scanning":
+        st.header("ID Card Scanner")
         
-        st.rerun() 
+        # Select document type
+        document_type = st.selectbox("Select Document Type", 
+                                    list(id_processor.formats.keys()),
+                                    index=0)  # Default to first document type
+        
+        # Determine which side to scan
+        if not st.session_state.front_processed:
+            side = "front"
+            st.info("Please scan the FRONT of your ID card")
+        elif not st.session_state.back_processed:
+            side = "back"
+            st.info("Please scan the BACK of your ID card")
+        else:
+            side = st.radio("Select card side", ["front", "back"])
+            if st.button("Reset Scanning Process"):
+                st.session_state.front_processed = False
+                st.session_state.back_processed = False
+                st.session_state.front_data = {}
+                st.session_state.back_data = {}
+                st.session_state.front_image_path = None
+                st.session_state.back_image_path = None
+                st.experimental_rerun()
+        
+        # Upload image option
+        uploaded_file = st.file_uploader("Upload ID card image", type=["jpg", "jpeg", "png"])
+        
+        if uploaded_file is not None:
+            # Save the uploaded file to a temporary file
+            file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
+            image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+            
+            # Save image for processing
+            temp_filepath = os.path.join(UPLOAD_FOLDER, f"{st.session_state.session_id}_{side}.jpg")
+            cv2.imwrite(temp_filepath, image)
+            
+            # Process the image
+            fields_to_extract = id_processor.formats[document_type][side]
+            extracted_text = id_processor.extract_text_from_image(image)
+            
+            if extracted_text:
+                success, filled_data = id_processor.map_text_to_fields(extracted_text, fields_to_extract)
+                
+                if success:
+                    st.success("ID card processed successfully!")
+                    
+                    # Save extracted data
+                    filename, filepath = save_extracted_data(document_type, side, filled_data)
+                    
+                    # Display extracted information
+                    st.subheader("Extracted Information")
+                    for field, value in filled_data.items():
+                        st.text_input(field, value)
+                    
+                    # Update session state
+                    if side == "front":
+                        st.session_state.front_processed = True
+                        st.session_state.front_data = filled_data
+                        st.session_state.front_image_path = temp_filepath
+                    else:
+                        st.session_state.back_processed = True
+                        st.session_state.back_data = filled_data
+                        st.session_state.back_image_path = temp_filepath
+                    
+                    # Next steps
+                    if side == "front" and not st.session_state.back_processed:
+                        st.info("Front side processed successfully. Please scan the back side of your ID card.")
+                        if st.button("Continue to back side"):
+                            st.experimental_rerun()
+                    elif side == "back" or (st.session_state.front_processed and st.session_state.back_processed):
+                        st.success("ID card fully processed! You can now proceed to face verification.")
+                        if st.button("Continue to Face Verification"):
+                            page = "Face Verification"
+                            st.experimental_rerun()
+                else:
+                    st.warning("Partial text extraction. Some fields could not be filled.")
+                    # Display partial results
+                    st.subheader("Partial Results")
+                    for field, value in filled_data.items():
+                        st.text_input(field, value)
+            else:
+                st.error("Failed to extract text from image. Please try again with a clearer image.")
+    
+    # Face Verification Page
+    elif page == "Face Verification":
+        st.header("Face Verification")
+        
+        if not st.session_state.front_processed:
+            st.warning("Please complete ID card scanning before proceeding to face verification.")
+            if st.button("Go to ID Scanning"):
+                page = "ID Scanning"
+                st.experimental_rerun()
+        else:
+            st.subheader("Compare Live Face with ID Photo")
+            
+            # Display the ID photo for reference
+            if st.session_state.front_image_path and os.path.exists(st.session_state.front_image_path):
+                id_image = cv2.imread(st.session_state.front_image_path)
+                id_image_rgb = cv2.cvtColor(id_image, cv2.COLOR_BGR2RGB)
+                
+                # Try to detect face in ID card
+                id_face_locations = face_recognition.face_locations(id_image_rgb)
+                
+                if id_face_locations:
+                    # Extract and display just the face from the ID
+                    top, right, bottom, left = id_face_locations[0]
+                    id_face = id_image_rgb[top:bottom, left:right]
+                    st.image(id_face, caption="ID Card Photo", width=200)
+                else:
+                    # If face detection fails, show the whole ID card
+                    st.image(id_image_rgb, caption="ID Card Photo", width=300)
+                
+                # Option for webcam capture
+                st.subheader("Capture Your Face")
+                picture = st.camera_input("Take a picture")
+                
+                if picture is not None:
+                    # Process the captured image
+                    bytes_data = picture.getvalue()
+                    face_image = Image.open(io.BytesIO(bytes_data))
+                    face_np = np.array(face_image)
+                    
+                    # Save the captured face
+                    face_filepath = os.path.join(UPLOAD_FOLDER, f"{st.session_state.session_id}_face.jpg")
+                    cv2.imwrite(face_filepath, cv2.cvtColor(face_np, cv2.COLOR_RGB2BGR))
+                    
+                    # Convert to format usable by face_recognition
+                    face_image_rgb = cv2.cvtColor(face_np, cv2.COLOR_RGB2BGR)
+                    
+                    # Detect face in captured image
+                    face_locations = face_recognition.face_locations(face_image_rgb)
+                    
+                    if not face_locations:
+                        st.error("No face detected in the captured image. Please ensure your face is clearly visible.")
+                    else:
+                        # Compare faces if both are available
+                        try:
+                            id_face_encodings = face_recognition.face_encodings(id_image_rgb, id_face_locations)
+                            face_encodings = face_recognition.face_encodings(face_image_rgb, face_locations)
+                            
+                            if len(id_face_encodings) > 0 and len(face_encodings) > 0:
+                                # Calculate face distance
+                                face_distance = face_recognition.face_distance([id_face_encodings[0]], face_encodings[0])[0]
+                                match_threshold = 0.45  # More strict threshold (changed from 0.65)
+                                
+                                st.subheader("Verification Result")
+                                if face_distance < match_threshold:
+                                    st.success(f"Face verification successful! (Match score: {1-face_distance:.2f})")
+                                else:
+                                    st.error(f"Face verification failed. The captured face does not match the ID card photo. (Match score: {1-face_distance:.2f})")
+                                
+                                # Display both faces side by side
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    st.image(id_image_rgb, caption="ID Card", width=300)
+                                with col2:
+                                    st.image(face_np, caption="Captured Face", width=300)
+                            else:
+                                st.error("Face verification failed. Could not properly analyze facial features.")
+                        except Exception as e:
+                            st.error(f"Error in face verification: {str(e)}")
+            else:
+                st.error("ID card image not found. Please complete the ID card scanning process first.")
+    
+    # About Page
+    elif page == "About":
+        st.header("About This Application")
+        st.write("""
+        This application provides a streamlined way to process and verify ID cards, with the following features:
+        
+        - ID card scanning and text extraction
+        - Support for multiple document types
+        - Face verification comparing live face with ID photo
+        - Secure data handling
+        
+        This is the Streamlit version of the original web_server.py Flask application.
+        """)
+        
+        st.subheader("Supported Document Types")
+        for doc_type in id_processor.formats.keys():
+            st.write(f"- {doc_type}")
+
+if __name__ == "__main__":
+    main() 

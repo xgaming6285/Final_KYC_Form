@@ -11,16 +11,7 @@ import json
 from google.cloud import vision
 from google.oauth2 import service_account
 import datetime
-
-# Make face_recognition optional
-face_recognition_available = False
-try:
-    import face_recognition
-    face_recognition_available = True
-    print("Face recognition module loaded successfully")
-except ImportError:
-    print("Face recognition module not available - face verification will use fallback method")
-    pass
+import face_recognition
 
 # Set Google Cloud credentials explicitly
 credential_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'n8n-test-456921-2c4224bba16d.json')
@@ -406,7 +397,7 @@ def verify_face():
         face_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{session_id}_face.jpg")
         face_image.save(face_filepath)
         
-        # Convert to a format usable by face_recognition if available
+        # Convert to a format usable by face_recognition
         face_image_np = np.array(face_image)
         face_image_rgb = cv2.cvtColor(face_image_np, cv2.COLOR_BGR2RGB)
         
@@ -434,40 +425,10 @@ def verify_face():
         # For debugging and display purposes
         print(f"Using ID image from: {id_front_path}")
         
-        # Use the full ID card image for comparison
+        # *** IMPORTANT: Use the full ID card image for comparison rather than extracting face ***
+        # This ensures we always have the ID photo visible for comparison
         id_photo_url = f"/uploads/{os.path.basename(id_front_path)}"
         
-        # If face_recognition is not available, use a simplified approach
-        if not face_recognition_available:
-            # Use OpenCV for a basic face detection
-            try:
-                face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-                gray = cv2.cvtColor(face_image_np, cv2.COLOR_BGR2GRAY)
-                faces = face_cascade.detectMultiScale(gray, 1.1, 4)
-                
-                if len(faces) == 0:
-                    return jsonify({
-                        'success': False,
-                        'message': 'No face detected in the captured image. Please ensure your face is clearly visible.',
-                        'id_photo_url': id_photo_url
-                    })
-                
-                # For manual verification only (since we can't compare faces without face_recognition)
-                return jsonify({
-                    'success': True,
-                    'message': 'Face detected. Manual verification required as automatic comparison is not available.',
-                    'id_photo_url': id_photo_url,
-                    'manual_verification_required': True
-                })
-            except Exception as e:
-                print(f"OpenCV face detection error: {str(e)}")
-                return jsonify({
-                    'success': False,
-                    'message': 'Face verification unavailable. Please update your ID verification system.',
-                    'id_photo_url': id_photo_url
-                })
-        
-        # If face_recognition is available, use it for verification
         # Detect face in captured image
         face_locations = face_recognition.face_locations(face_image_rgb)
         
