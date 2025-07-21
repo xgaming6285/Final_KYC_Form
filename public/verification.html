@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-translate="meta.title">CreditoPro - Identity Verification</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="verification-styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <a href="index.html"><i class="fas fa-coins"></i> CreditoPro</a>
+            </div>
+            
+            <div class="nav-menu" id="nav-menu">
+                <a href="index.html#home" class="nav-link" data-translate="navigation.home">Home</a>
+                <a href="index.html#calculator" class="nav-link" data-translate="navigation.calculator">Loans</a>
+                <a href="index.html#how-it-works" class="nav-link" data-translate="navigation.how_it_works">How it Works</a>
+                <a href="index.html#contact" class="nav-link" data-translate="navigation.contact">Contact</a>
+                
+                <div class="language-selector">
+                    <select id="language-select">
+                        <option value="bg">BG</option>
+                        <option value="en" selected>EN</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="hamburger" id="hamburger">
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Verification Section -->
+    <section class="verification-page">
+        <div class="container">
+            <div class="verification-header-page">
+                <h1><i class="fas fa-shield-check"></i> <span data-translate="verification.title">Identity Verification</span></h1>
+                <p data-translate="verification.subtitle">Complete the verification form to finalize your loan application</p>
+            </div>
+            
+            <div class="verification-steps">
+                <div class="step-indicator">
+                    <div class="step-item active" data-step="1">
+                        <div class="step-number">1</div>
+                        <span data-translate="verification.steps.personal_data">Personal Data</span>
+                    </div>
+                    <div class="step-item" data-step="2">
+                        <div class="step-number">2</div>
+                        <span data-translate="verification.steps.documents">Documents</span>
+                    </div>
+                    <div class="step-item" data-step="3">
+                        <div class="step-number">3</div>
+                        <span data-translate="verification.steps.verification">Verification</span>
+                    </div>
+                </div>
+
+                <!-- Step 1: Personal Information -->
+                <div class="verification-step active" id="step-1">
+                    <h3 data-translate="verification.step1.title">Enter your personal information</h3>
+                    <form id="personal-info-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="first-name" data-translate="verification.step1.first_name">First Name</label>
+                                <input type="text" id="first-name" name="firstName" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="last-name" data-translate="verification.step1.last_name">Last Name</label>
+                                <input type="text" id="last-name" name="lastName" required>
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="egn" data-translate="verification.step1.egn">Personal ID Number</label>
+                                <input type="text" id="egn" name="egn" maxlength="10" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="phone" data-translate="verification.step1.phone">Phone</label>
+                                <input type="tel" id="phone" name="phone" required>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="email" data-translate="verification.step1.email">Email Address</label>
+                            <input type="email" id="email" name="email" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="address" data-translate="verification.step1.address">Address</label>
+                            <textarea id="address" name="address" rows="3" required></textarea>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="income" data-translate="verification.step1.income">Monthly Income (BGN)</label>
+                                <input type="number" id="income" name="income" min="0" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="employment" data-translate="verification.step1.employment">Employment Status</label>
+                                <select id="employment" name="employment" required>
+                                    <option value="" data-translate="verification.step1.employment_options.select">Select</option>
+                                    <option value="employed" data-translate="verification.step1.employment_options.employed">Employed</option>
+                                    <option value="self-employed" data-translate="verification.step1.employment_options.self_employed">Self-employed</option>
+                                    <option value="retired" data-translate="verification.step1.employment_options.retired">Retired</option>
+                                    <option value="unemployed" data-translate="verification.step1.employment_options.unemployed">Unemployed</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <button type="button" class="next-btn" onclick="nextStep(2)">
+                            <span data-translate="verification.step1.continue">Continue</span> <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Step 2: Document Upload -->
+                <div class="verification-step" id="step-2">
+                    <h3 data-translate="verification.step2.title">Upload your documents</h3>
+                    
+                    <div class="document-section">
+                        <h4><i class="fas fa-id-card"></i> <span data-translate="verification.step2.id_card">ID Card</span></h4>
+                        <p class="section-description" data-translate="verification.step2.id_card_description">Upload photos of both sides of your ID card</p>
+                        
+                        <div class="upload-options">
+                            <div class="upload-option">
+                                <h5 data-translate="verification.step2.front_side">Front Side</h5>
+                                <div class="upload-area" id="id-front-upload">
+                                    <i class="fas fa-cloud-upload-alt"></i>
+                                    <p data-translate="verification.step2.upload_text">Click or drop file here</p>
+                                    <input type="file" id="id-front" accept="image/*" hidden>
+                                </div>
+                                <div class="preview" id="id-front-preview"></div>
+                            </div>
+                            
+                            <div class="upload-option">
+                                <h5 data-translate="verification.step2.back_side">Back Side</h5>
+                                <div class="upload-area" id="id-back-upload">
+                                    <i class="fas fa-cloud-upload-alt"></i>
+                                    <p data-translate="verification.step2.upload_text">Click or drop file here</p>
+                                    <input type="file" id="id-back" accept="image/*" hidden>
+                                </div>
+                                <div class="preview" id="id-back-preview"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="camera-option">
+                            <button type="button" class="camera-btn" onclick="openCamera('id-front')">
+                                <i class="fas fa-camera"></i> <span data-translate="verification.step2.camera_front">Use camera for front side</span>
+                            </button>
+                            <button type="button" class="camera-btn" onclick="openCamera('id-back')">
+                                <i class="fas fa-camera"></i> <span data-translate="verification.step2.camera_back">Use camera for back side</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="document-section">
+                        <h4><i class="fas fa-file-invoice"></i> <span data-translate="verification.step2.income_document">Income Document</span></h4>
+                        <p class="section-description" data-translate="verification.step2.income_description">Employment record, contract, tax statement or other document</p>
+                        
+                        <div class="upload-area" id="income-upload">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p data-translate="verification.step2.upload_text">Click or drop file here</p>
+                            <input type="file" id="income-doc" accept="image/*,.pdf" hidden>
+                        </div>
+                        <div class="preview" id="income-preview"></div>
+                    </div>
+                    
+                    <div class="step-navigation">
+                        <button type="button" class="prev-btn" onclick="prevStep(1)">
+                            <i class="fas fa-arrow-left"></i> <span data-translate="verification.step2.back">Back</span>
+                        </button>
+                        <button type="button" class="next-btn" onclick="nextStep(3)">
+                            <span data-translate="verification.step2.continue">Continue</span> <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Step 3: Face Verification -->
+                <div class="verification-step" id="step-3">
+                    <h3 data-translate="verification.step3.title">Face Verification</h3>
+                    <p class="section-description" data-translate="verification.step3.description">Take a selfie to compare with the face from your ID card</p>
+                    
+                    <div class="face-verification-section">
+                        <div class="verification-info">
+                            <div class="info-item">
+                                <i class="fas fa-lightbulb"></i>
+                                <span data-translate="verification.step3.info.lighting">Ensure good lighting</span>
+                            </div>
+                            <div class="info-item">
+                                <i class="fas fa-eye"></i>
+                                <span data-translate="verification.step3.info.look_camera">Look directly at the camera</span>
+                            </div>
+                            <div class="info-item">
+                                <i class="fas fa-user"></i>
+                                <span data-translate="verification.step3.info.remove_accessories">Remove hats and glasses</span>
+                            </div>
+                        </div>
+                        
+                        <div class="face-capture">
+                            <video id="face-video" width="320" height="240" autoplay muted style="display: none;"></video>
+                            <canvas id="face-canvas" width="320" height="240" style="display: none;"></canvas>
+                            <div class="face-placeholder" id="face-placeholder">
+                                <i class="fas fa-user-circle"></i>
+                                <p data-translate="verification.step3.placeholder">Click to start camera</p>
+                            </div>
+                            <div class="face-preview" id="face-preview"></div>
+                        </div>
+                        
+                        <div class="face-controls">
+                            <button type="button" class="camera-btn" onclick="startFaceCapture()">
+                                <i class="fas fa-video"></i> <span data-translate="verification.step3.start_camera">Start Camera</span>
+                            </button>
+                            <button type="button" class="capture-btn" onclick="capturePhoto()" style="display: none;">
+                                <i class="fas fa-camera"></i> <span data-translate="verification.step3.take_photo">Take Photo</span>
+                            </button>
+                            <button type="button" class="upload-btn" onclick="uploadFaceImage()">
+                                <i class="fas fa-upload"></i> <span data-translate="verification.step3.upload_photo">Upload Photo</span>
+                            </button>
+                        </div>
+                        
+                        <input type="file" id="face-upload" accept="image/*" hidden>
+                    </div>
+                    
+                    <div class="step-navigation">
+                        <button type="button" class="prev-btn" onclick="prevStep(2)">
+                            <i class="fas fa-arrow-left"></i> <span data-translate="verification.step3.back">Back</span>
+                        </button>
+                        <button type="button" class="submit-btn" onclick="submitApplication()">
+                            <span data-translate="verification.step3.submit">Submit Application</span> <i class="fas fa-check"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Success Step -->
+                <div class="verification-step" id="step-success" style="display: none;">
+                    <div class="success-content">
+                        <div class="success-icon">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <h3 data-translate="verification.success.title">Application submitted successfully!</h3>
+                        <p data-translate="verification.success.thank_you">Thank you for your trust! You will receive a response within 15-30 minutes.</p>
+                        
+                        <div class="next-steps">
+                            <h4 data-translate="verification.success.next_steps">Next steps:</h4>
+                            <ol>
+                                <li data-translate="verification.success.step_list.step1">We will review your documents</li>
+                                <li data-translate="verification.success.step_list.step2">We will send you an email with the result</li>
+                                <li data-translate="verification.success.step_list.step3">Upon approval - funds will be transferred</li>
+                            </ol>
+                        </div>
+                        
+                        <div class="contact-info">
+                            <p data-translate="verification.success.contact_info">For questions contact us:</p>
+                            <p><i class="fas fa-phone"></i> <span data-translate="contact.phone">0700 12 345</span></p>
+                            <p><i class="fas fa-envelope"></i> <span data-translate="contact.email">info@creditopro.bg</span></p>
+                        </div>
+                        
+                        <button type="button" class="back-home-btn" onclick="window.location.href='index.html'">
+                            <span data-translate="verification.success.back_home">Back to Home</span> <i class="fas fa-home"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Camera Modal (still needed for camera functionality) -->
+    <div class="camera-modal" id="camera-modal">
+        <div class="camera-content">
+            <div class="camera-header">
+                <h3 data-translate="verification.camera_modal.title">Document Capture</h3>
+                <button class="close-camera" onclick="closeCameraModal()" data-translate="verification.camera_modal.close">&times;</button>
+            </div>
+            <div class="camera-body">
+                <video id="camera-video" autoplay muted></video>
+                <canvas id="camera-canvas" style="display: none;"></canvas>
+                <div class="camera-overlay">
+                    <div class="camera-frame"></div>
+                </div>
+            </div>
+            <div class="camera-controls">
+                <button onclick="captureDocument()" class="capture-document-btn">
+                    <i class="fas fa-camera"></i> <span data-translate="verification.camera_modal.capture">Capture</span>
+                </button>
+                <button onclick="closeCameraModal()" class="cancel-btn" data-translate="verification.camera_modal.cancel">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/translation-manager.js"></script>
+    <script src="verification.js"></script>
+</body>
+</html> 

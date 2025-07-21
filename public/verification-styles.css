@@ -1,0 +1,83 @@
+/* Verification Page Specific Styles */
+.verification-page {
+    background: linear-gradient(135deg, var(--bg-light) 0%, var(--bg-lighter) 100%);
+    min-height: 100vh;
+    padding: 100px 0 50px;
+}
+
+.verification-header-page {
+    text-align: center;
+    margin-bottom: 60px;
+}
+
+.verification-header-page h1 {
+    font-size: 42px;
+    font-weight: 700;
+    color: var(--text-dark);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+}
+
+.verification-header-page h1 i {
+    color: var(--primary-color);
+    font-size: 38px;
+}
+
+.verification-header-page p {
+    font-size: 18px;
+    color: var(--text-light);
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.verification-steps {
+    background: var(--bg-white);
+    border-radius: var(--radius-2xl);
+    padding: 40px;
+    box-shadow: var(--shadow-xl);
+    border: 1px solid var(--border-light);
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.back-home-btn {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 16px 32px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 auto;
+}
+
+.back-home-btn:hover {
+    background: #1d4ed8;
+    transform: translateY(-2px);
+}
+
+/* Mobile Responsive for Verification Page */
+@media (max-width: 768px) {
+    .verification-page {
+        padding: 80px 0 30px;
+    }
+    
+    .verification-header-page h1 {
+        font-size: 32px;
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    .verification-steps {
+        padding: 24px 16px;
+        margin: 0 10px;
+    }
+} 

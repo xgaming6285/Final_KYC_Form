@@ -166,12 +166,11 @@ document.addEventListener('DOMContentLoaded', function() {
     updateCalculator();
 });
 
-// Start Application Function
+// Start Application Function - REDIRECT TO VERIFICATION PAGE
 function startApplication() {
-    const verificationModal = document.getElementById('verification-modal');
-    verificationModal.classList.add('active');
-    document.body.style.overflow = 'hidden'; // Prevent background scrolling
+    window.location.href = 'verification.html';
 }
+
 
 // FAQ Toggle Functionality
 function toggleFAQ(index) {
