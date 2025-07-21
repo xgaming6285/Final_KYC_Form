@@ -46,38 +46,23 @@
             <div class="hero-content">
                 <h1>Бърз кредит до <span class="highlight">50 000 лв</span></h1>
                 <p>Получете одобрение за минути, пари на сметката за час. Без скрити такси, прозрачни условия.</p>
-                <div class="hero-features">
-                    <div class="feature">
-                        <i class="fas fa-clock"></i>
-                        <span>За 15 минути</span>
+                <div class="hero-stats">
+                    <div class="stat-item">
+                        <div class="stat-number">15 мин</div>
+                        <div class="stat-label">Одобрение</div>
                     </div>
-                    <div class="feature">
-                        <i class="fas fa-shield-alt"></i>
-                        <span>100% сигурно</span>
+                    <div class="stat-item">
+                        <div class="stat-number">15,000+</div>
+                        <div class="stat-label">Клиенти</div>
                     </div>
-                    <div class="feature">
-                        <i class="fas fa-mobile-alt"></i>
-                        <span>Онлайн процес</span>
+                    <div class="stat-item">
+                        <div class="stat-number">100%</div>
+                        <div class="stat-label">Сигурност</div>
                     </div>
                 </div>
                 <button class="cta-button" onclick="scrollToCalculator()">
-                    Кандидатствай сега <i class="fas fa-arrow-right"></i>
+                    Кандидатствай сега
                 </button>
-            </div>
-            <div class="hero-image">
-                <div class="hero-image-container">
-                    <img src="happy-people.jpg" alt="Happy customers celebrating their approved loans" class="hero-main-image">
-                    <div class="hero-overlay-content">
-                        <div class="success-badge">
-                            <i class="fas fa-check-circle"></i>
-                            <span>Одобрени кредити</span>
-                        </div>
-                        <div class="customer-count">
-                            <div class="count-number">15,000+</div>
-                            <div class="count-label">Доволни клиенти</div>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
     </section>
@@ -172,65 +157,32 @@
     <!-- Testimonials -->
     <section class="testimonials">
         <div class="container">
-            <div class="testimonials-header">
-                <div class="testimonials-content">
-                    <h2>Какво казват клиентите ни</h2>
-                    <p>Над 15,000 доволни клиенти са се доверили на нашите услуги</p>
-                </div>
-                <div class="testimonials-image">
-                                         <img src="happy-people.jpg" alt="Happy satisfied customers celebrating success" class="testimonials-photo">
-                    <div class="testimonials-stats">
-                        <div class="stat-item">
-                            <div class="stat-number">98%</div>
-                            <div class="stat-label">Одобрение</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-number">15k+</div>
-                            <div class="stat-label">Клиенти</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <h2>Какво казват клиентите ни</h2>
             
-            <div class="testimonial-slider" id="testimonial-slider">
-                <div class="testimonial active">
-                    <div class="testimonial-content">
-                        <p>"Много бърз и удобен процес. Получих парите още същия ден!"</p>
-                        <div class="testimonial-author">
-                            <strong>Мария И.</strong>
-                            <span>София</span>
-                        </div>
+            <div class="testimonials-grid">
+                <div class="testimonial">
+                    <p>"Много бърз и удобен процес. Получих парите още същия ден!"</p>
+                    <div class="testimonial-author">
+                        <strong>Мария И.</strong>
+                        <span>София</span>
                     </div>
                 </div>
                 
                 <div class="testimonial">
-                    <div class="testimonial-content">
-                        <p>"Отлично обслужване и прозрачни условия. Препоръчвам!"</p>
-                        <div class="testimonial-author">
-                            <strong>Петър С.</strong>
-                            <span>Пловдив</span>
-                        </div>
+                    <p>"Отлично обслужване и прозрачни условия. Препоръчвам!"</p>
+                    <div class="testimonial-author">
+                        <strong>Петър С.</strong>
+                        <span>Пловдив</span>
                     </div>
                 </div>
                 
                 <div class="testimonial">
-                    <div class="testimonial-content">
-                        <p>"Спасиха ме в трудна ситуация. Благодаря за професионализма!"</p>
-                        <div class="testimonial-author">
-                            <strong>Елена Д.</strong>
-                            <span>Варна</span>
-                        </div>
+                    <p>"Спасиха ме в трудна ситуация. Благодаря за професионализма!"</p>
+                    <div class="testimonial-author">
+                        <strong>Елена Д.</strong>
+                        <span>Варна</span>
                     </div>
                 </div>
-            </div>
-            
-            <div class="testimonial-nav">
-                <button class="prev-btn" onclick="changeTestimonial(-1)">
-                    <i class="fas fa-chevron-left"></i>
-                </button>
-                <button class="next-btn" onclick="changeTestimonial(1)">
-                    <i class="fas fa-chevron-right"></i>
-                </button>
             </div>
         </div>
     </section>
@@ -277,12 +229,23 @@
                         </div>
                     </div>
                 </div>
-                <div class="success-image">
-                                         <img src="public/images/happy-people.jpg" alt="Success story - happy customers celebrating with high-five" class="success-photo">
-                    <div class="success-overlay">
-                        <div class="success-stat">
-                            <div class="big-number">50M+</div>
-                            <div class="big-label">лв одобрени кредити</div>
+                <div class="success-stats-card">
+                    <div class="main-stat">
+                        <div class="big-number">50M+</div>
+                        <div class="big-label">лв одобрени кредити</div>
+                    </div>
+                    <div class="secondary-stats">
+                        <div class="secondary-stat">
+                            <div class="stat-number">15,000+</div>
+                            <div class="stat-label">Доволни клиенти</div>
+                        </div>
+                        <div class="secondary-stat">
+                            <div class="stat-number">4 години</div>
+                            <div class="stat-label">Опит</div>
+                        </div>
+                        <div class="secondary-stat">
+                            <div class="stat-number">98%</div>
+                            <div class="stat-label">Одобрение</div>
                         </div>
                     </div>
                 </div>
