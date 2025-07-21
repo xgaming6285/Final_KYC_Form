@@ -244,35 +244,22 @@ class TranslationManager {
                 heroSubtitle.textContent = subtitleTranslation;
             }
 
-            // Hero features
-            const features = document.querySelectorAll('.hero-features .feature span');
-            const featureKeys = ['hero.features.fast', 'hero.features.secure', 'hero.features.online'];
+            // Hero stats (new simplified structure)
+            const statLabels = document.querySelectorAll('.hero-stats .stat-label');
+            const statKeys = ['hero.stats.approval', 'hero.stats.clients', 'hero.stats.security'];
             
-            features.forEach((feature, index) => {
-                const translation = this.t(featureKeys[index]);
-                if (feature && translation) {
-                    feature.textContent = translation;
+            statLabels.forEach((label, index) => {
+                const translation = this.t(statKeys[index]);
+                if (label && translation) {
+                    label.textContent = translation;
                 }
             });
 
-            // CTA button
+            // CTA button (no icon in new version)
             const ctaButton = document.querySelector('.cta-button');
             const buttonTranslation = this.t('hero.cta_button');
             if (ctaButton && buttonTranslation) {
-                ctaButton.innerHTML = `${buttonTranslation} <i class="fas fa-arrow-right"></i>`;
-            }
-
-            // Hero image overlay content
-            const successBadgeSpan = document.querySelector('.success-badge span');
-            const successBadgeTranslation = this.t('hero.success_badge');
-            if (successBadgeSpan && successBadgeTranslation) {
-                successBadgeSpan.textContent = successBadgeTranslation;
-            }
-
-            const customerCountLabel = document.querySelector('.count-label');
-            const customerCountTranslation = this.t('hero.customer_count');
-            if (customerCountLabel && customerCountTranslation) {
-                customerCountLabel.textContent = customerCountTranslation;
+                ctaButton.textContent = buttonTranslation;
             }
         } catch (error) {
             console.error('Error updating hero section:', error);
@@ -386,34 +373,17 @@ class TranslationManager {
      */
     updateTestimonialsSafe() {
         try {
-            // Testimonials header content
-            const testimonialsTitle = document.querySelector('.testimonials-content h2');
+            // Testimonials title (new simplified structure)
+            const testimonialsTitle = document.querySelector('.testimonials h2');
             const titleTranslation = this.t('testimonials.title');
             if (testimonialsTitle && titleTranslation) {
                 testimonialsTitle.textContent = titleTranslation;
             }
 
-            const testimonialsSubtitle = document.querySelector('.testimonials-content p');
-            const subtitleTranslation = this.t('testimonials.subtitle');
-            if (testimonialsSubtitle && subtitleTranslation) {
-                testimonialsSubtitle.textContent = subtitleTranslation;
-            }
-
-            // Statistics labels
-            const statLabels = document.querySelectorAll('.stat-label');
-            const statKeys = ['testimonials.stats.approval', 'testimonials.stats.clients'];
-            
-            statLabels.forEach((label, index) => {
-                const translation = this.t(statKeys[index]);
-                if (label && translation) {
-                    label.textContent = translation;
-                }
-            });
-
-            // Individual testimonials
-            const testimonialTexts = document.querySelectorAll('.testimonial-content p');
-            const testimonialAuthors = document.querySelectorAll('.testimonial-author strong');
-            const testimonialLocations = document.querySelectorAll('.testimonial-author span');
+            // Individual testimonials (new grid structure)
+            const testimonialTexts = document.querySelectorAll('.testimonials-grid .testimonial p');
+            const testimonialAuthors = document.querySelectorAll('.testimonials-grid .testimonial-author strong');
+            const testimonialLocations = document.querySelectorAll('.testimonials-grid .testimonial-author span');
 
             testimonialTexts.forEach((text, index) => {
                 const translation = this.t(`testimonials.testimonial${index + 1}.text`);
@@ -474,12 +444,23 @@ class TranslationManager {
                 }
             });
 
-            // Big stat label
-            const bigLabel = document.querySelector('.big-label');
+            // Main stat label in the stats card
+            const bigLabel = document.querySelector('.main-stat .big-label');
             const bigLabelTranslation = this.t('success_story.big_stat');
             if (bigLabel && bigLabelTranslation) {
                 bigLabel.textContent = bigLabelTranslation;
             }
+
+            // Secondary stats labels
+            const secondaryStatLabels = document.querySelectorAll('.secondary-stat .stat-label');
+            const secondaryStatKeys = ['success_story.stats.clients', 'success_story.stats.experience', 'success_story.stats.approval'];
+            
+            secondaryStatLabels.forEach((label, index) => {
+                const translation = this.t(secondaryStatKeys[index]);
+                if (label && translation) {
+                    label.textContent = translation;
+                }
+            });
         } catch (error) {
             console.error('Error updating success story section:', error);
         }

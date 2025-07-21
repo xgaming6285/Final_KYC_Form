@@ -12,14 +12,12 @@
   "hero": {
     "title": "Quick loan up to <span class=\"highlight\">50,000 BGN</span>",
     "subtitle": "Get approval in minutes, money in your account within an hour. No hidden fees, transparent conditions.",
-    "features": {
-      "fast": "In 15 minutes",
-      "secure": "100% secure", 
-      "online": "Online process"
+    "stats": {
+      "approval": "Approval",
+      "clients": "Clients",
+      "security": "Security"
     },
-    "cta_button": "Apply now",
-    "success_badge": "Approved loans",
-    "customer_count": "Happy customers"
+    "cta_button": "Apply now"
   },
   "calculator": {
     "title": "Loan Calculator",
@@ -212,6 +210,11 @@
       "education": "Education loans", 
       "business": "Business loans"
     },
-    "big_stat": "BGN approved loans"
+    "big_stat": "BGN approved loans",
+    "stats": {
+      "clients": "Happy clients",
+      "experience": "Experience",
+      "approval": "Approval"
+    }
   }
 } 
