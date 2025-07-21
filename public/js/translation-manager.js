@@ -88,6 +88,7 @@ class TranslationManager {
             this.updateCalculatorExpandedSafe();
             this.updateHowItWorksSafe();
             this.updateTestimonialsSafe();
+            this.updateSuccessStorySafe();
             this.updateFAQSafe();
             this.updateContactSafe();
             this.updateFooterSafe();
@@ -260,6 +261,19 @@ class TranslationManager {
             if (ctaButton && buttonTranslation) {
                 ctaButton.innerHTML = `${buttonTranslation} <i class="fas fa-arrow-right"></i>`;
             }
+
+            // Hero image overlay content
+            const successBadgeSpan = document.querySelector('.success-badge span');
+            const successBadgeTranslation = this.t('hero.success_badge');
+            if (successBadgeSpan && successBadgeTranslation) {
+                successBadgeSpan.textContent = successBadgeTranslation;
+            }
+
+            const customerCountLabel = document.querySelector('.count-label');
+            const customerCountTranslation = this.t('hero.customer_count');
+            if (customerCountLabel && customerCountTranslation) {
+                customerCountLabel.textContent = customerCountTranslation;
+            }
         } catch (error) {
             console.error('Error updating hero section:', error);
         }
@@ -372,11 +386,29 @@ class TranslationManager {
      */
     updateTestimonialsSafe() {
         try {
-            const testimonialsTitle = document.querySelector('.testimonials h2');
+            // Testimonials header content
+            const testimonialsTitle = document.querySelector('.testimonials-content h2');
             const titleTranslation = this.t('testimonials.title');
             if (testimonialsTitle && titleTranslation) {
                 testimonialsTitle.textContent = titleTranslation;
             }
+
+            const testimonialsSubtitle = document.querySelector('.testimonials-content p');
+            const subtitleTranslation = this.t('testimonials.subtitle');
+            if (testimonialsSubtitle && subtitleTranslation) {
+                testimonialsSubtitle.textContent = subtitleTranslation;
+            }
+
+            // Statistics labels
+            const statLabels = document.querySelectorAll('.stat-label');
+            const statKeys = ['testimonials.stats.approval', 'testimonials.stats.clients'];
+            
+            statLabels.forEach((label, index) => {
+                const translation = this.t(statKeys[index]);
+                if (label && translation) {
+                    label.textContent = translation;
+                }
+            });
 
             // Individual testimonials
             const testimonialTexts = document.querySelectorAll('.testimonial-content p');
@@ -405,6 +437,51 @@ class TranslationManager {
             });
         } catch (error) {
             console.error('Error updating testimonials section:', error);
+        }
+    }
+
+    /**
+     * Safely update success story section
+     */
+    updateSuccessStorySafe() {
+        try {
+            const successBadge = document.querySelector('.success-badge-large span');
+            const badgeTranslation = this.t('success_story.badge');
+            if (successBadge && badgeTranslation) {
+                successBadge.textContent = badgeTranslation;
+            }
+
+            const successTitle = document.querySelector('.success-text h2');
+            const titleTranslation = this.t('success_story.title');
+            if (successTitle && titleTranslation) {
+                successTitle.textContent = titleTranslation;
+            }
+
+            const successDescription = document.querySelector('.success-text p');
+            const descTranslation = this.t('success_story.description');
+            if (successDescription && descTranslation) {
+                successDescription.textContent = descTranslation;
+            }
+
+            // Success highlights
+            const highlightSpans = document.querySelectorAll('.highlight-item div span');
+            const highlightKeys = ['success_story.highlights.housing', 'success_story.highlights.auto', 'success_story.highlights.education', 'success_story.highlights.business'];
+            
+            highlightSpans.forEach((span, index) => {
+                const translation = this.t(highlightKeys[index]);
+                if (span && translation) {
+                    span.textContent = translation;
+                }
+            });
+
+            // Big stat label
+            const bigLabel = document.querySelector('.big-label');
+            const bigLabelTranslation = this.t('success_story.big_stat');
+            if (bigLabel && bigLabelTranslation) {
+                bigLabel.textContent = bigLabelTranslation;
+            }
+        } catch (error) {
+            console.error('Error updating success story section:', error);
         }
     }
 

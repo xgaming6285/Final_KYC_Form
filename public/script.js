@@ -1,20 +1,83 @@
-// Mobile Navigation Toggle
+// Enhanced Mobile Navigation Toggle with Modern Features
 document.addEventListener('DOMContentLoaded', function() {
     const hamburger = document.getElementById('hamburger');
     const navMenu = document.getElementById('nav-menu');
+    const navbar = document.querySelector('.navbar');
+    const scrollProgress = document.getElementById('scroll-progress');
+    const scrollToTopBtn = document.getElementById('scroll-to-top');
     
-    hamburger.addEventListener('click', function() {
-        hamburger.classList.toggle('active');
-        navMenu.classList.toggle('active');
-    });
-
-    // Close mobile menu when clicking on a link
-    document.querySelectorAll('.nav-link').forEach(link => {
-        link.addEventListener('click', () => {
-            hamburger.classList.remove('active');
-            navMenu.classList.remove('active');
+    // Mobile menu toggle
+    if (hamburger && navMenu) {
+        hamburger.addEventListener('click', function() {
+            hamburger.classList.toggle('active');
+            navMenu.classList.toggle('active');
         });
+
+        // Close mobile menu when clicking on a link
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', () => {
+                hamburger.classList.remove('active');
+                navMenu.classList.remove('active');
+            });
+        });
+    }
+    
+    // Enhanced scroll effects
+    function updateScrollEffects() {
+        const scrolled = window.scrollY;
+        const documentHeight = document.documentElement.scrollHeight - window.innerHeight;
+        const progress = (scrolled / documentHeight) * 100;
+        
+        // Update scroll progress bar
+        if (scrollProgress) {
+            scrollProgress.style.width = `${progress}%`;
+        }
+        
+        // Update navbar on scroll
+        if (navbar) {
+            if (scrolled > 100) {
+                navbar.classList.add('scrolled');
+            } else {
+                navbar.classList.remove('scrolled');
+            }
+        }
+        
+        // Show/hide scroll to top button
+        if (scrollToTopBtn) {
+            if (scrolled > 300) {
+                scrollToTopBtn.classList.add('visible');
+            } else {
+                scrollToTopBtn.classList.remove('visible');
+            }
+        }
+    }
+    
+    // Smooth scroll to top
+    if (scrollToTopBtn) {
+        scrollToTopBtn.addEventListener('click', function() {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        });
+    }
+    
+    // Throttled scroll event listener for better performance
+    let scrollTimeout;
+    window.addEventListener('scroll', function() {
+        if (!scrollTimeout) {
+            scrollTimeout = setTimeout(function() {
+                updateScrollEffects();
+                scrollTimeout = null;
+            }, 10);
+        }
     });
+    
+    // Initialize scroll effects
+    updateScrollEffects();
+    
+    // Add page transition effect
+    document.body.classList.add('page-transition');
 });
 
 // Smooth Scrolling for Navigation Links
@@ -238,29 +301,113 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Scroll animations
-function animateOnScroll() {
-    const elements = document.querySelectorAll('.step, .testimonial, .faq-item, .contact-item');
+// Enhanced Button Interactions
+document.addEventListener('DOMContentLoaded', function() {
+    // Add enhanced button effects
+    const buttons = document.querySelectorAll('.cta-button, .apply-button, .btn');
     
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                entry.target.style.opacity = '1';
-                entry.target.style.transform = 'translateY(0)';
+    buttons.forEach(button => {
+        button.classList.add('btn-enhanced');
+        
+        // Add ripple effect on click
+        button.addEventListener('click', function(e) {
+            const ripple = document.createElement('span');
+            const rect = this.getBoundingClientRect();
+            const size = Math.max(rect.width, rect.height);
+            const x = e.clientX - rect.left - size / 2;
+            const y = e.clientY - rect.top - size / 2;
+            
+            ripple.style.width = ripple.style.height = size + 'px';
+            ripple.style.left = x + 'px';
+            ripple.style.top = y + 'px';
+            ripple.classList.add('ripple');
+            
+            this.appendChild(ripple);
+            
+            setTimeout(() => {
+                ripple.remove();
+            }, 600);
+        });
+    });
+    
+    // Enhanced form interactions
+    const forms = document.querySelectorAll('form');
+    forms.forEach(form => {
+        form.classList.add('form-enhanced');
+    });
+    
+    // Add floating label effect
+    const inputs = document.querySelectorAll('input, select, textarea');
+    inputs.forEach(input => {
+        // Add focus and blur effects
+        input.addEventListener('focus', function() {
+            this.parentElement.classList.add('focused');
+        });
+        
+        input.addEventListener('blur', function() {
+            if (!this.value) {
+                this.parentElement.classList.remove('focused');
             }
         });
-    }, { threshold: 0.1 });
+        
+        // Initialize state
+        if (input.value) {
+            input.parentElement.classList.add('focused');
+        }
+    });
+    
+    // Add hover effects to cards
+    const cards = document.querySelectorAll('.option-card, .result-card, .step, .testimonial, .faq-item');
+    cards.forEach(card => {
+        card.classList.add('hover-lift');
+    });
+    
+    // Add animated icons
+    const icons = document.querySelectorAll('.feature i, .nav-logo i, .hero-placeholder i');
+    icons.forEach(icon => {
+        icon.classList.add('icon-animated');
+    });
+    
+    // Enhanced loading states
+    const loadingButtons = document.querySelectorAll('[data-loading]');
+    loadingButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            this.classList.add('loading');
+            
+            // Remove loading state after animation
+            setTimeout(() => {
+                this.classList.remove('loading');
+            }, 2000);
+        });
+    });
+});
 
-    elements.forEach(element => {
-        element.style.opacity = '0';
-        element.style.transform = 'translateY(20px)';
-        element.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+// Enhanced Scroll Animations
+const observerOptions = {
+    threshold: 0.1,
+    rootMargin: '0px 0px -50px 0px'
+};
+
+const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting) {
+            entry.target.style.animationPlayState = 'running';
+            entry.target.classList.add('animate-in');
+        }
+    });
+}, observerOptions);
+
+// Observe elements for scroll animations
+document.addEventListener('DOMContentLoaded', function() {
+    const animatedElements = document.querySelectorAll(
+        '.hero-content > *, .calculator-section > *, .feature, .step, .testimonial'
+    );
+    
+    animatedElements.forEach(element => {
+        element.style.animationPlayState = 'paused';
         observer.observe(element);
     });
-}
-
-// Initialize scroll animations when DOM is loaded
-document.addEventListener('DOMContentLoaded', animateOnScroll);
+});
 
 // Navbar scroll effect
 window.addEventListener('scroll', function() {

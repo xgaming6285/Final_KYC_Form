@@ -65,9 +65,18 @@
                 </button>
             </div>
             <div class="hero-image">
-                <div class="hero-placeholder">
-                    <i class="fas fa-credit-card"></i>
-                    <p>Вашият кредит ви чака</p>
+                <div class="hero-image-container">
+                    <img src="happy-people.jpg" alt="Happy customers celebrating their approved loans" class="hero-main-image">
+                    <div class="hero-overlay-content">
+                        <div class="success-badge">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Одобрени кредити</span>
+                        </div>
+                        <div class="customer-count">
+                            <div class="count-number">15,000+</div>
+                            <div class="count-label">Доволни клиенти</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -163,7 +172,25 @@
     <!-- Testimonials -->
     <section class="testimonials">
         <div class="container">
-            <h2>Какво казват клиентите ни</h2>
+            <div class="testimonials-header">
+                <div class="testimonials-content">
+                    <h2>Какво казват клиентите ни</h2>
+                    <p>Над 15,000 доволни клиенти са се доверили на нашите услуги</p>
+                </div>
+                <div class="testimonials-image">
+                                         <img src="happy-people.jpg" alt="Happy satisfied customers celebrating success" class="testimonials-photo">
+                    <div class="testimonials-stats">
+                        <div class="stat-item">
+                            <div class="stat-number">98%</div>
+                            <div class="stat-label">Одобрение</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-number">15k+</div>
+                            <div class="stat-label">Клиенти</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
             
             <div class="testimonial-slider" id="testimonial-slider">
                 <div class="testimonial active">
@@ -204,6 +231,61 @@
                 <button class="next-btn" onclick="changeTestimonial(1)">
                     <i class="fas fa-chevron-right"></i>
                 </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Success Story Section -->
+    <section class="success-story">
+        <div class="container">
+            <div class="success-content">
+                <div class="success-text">
+                    <div class="success-badge-large">
+                        <i class="fas fa-trophy"></i>
+                        <span>История на успеха</span>
+                    </div>
+                    <h2>Помогнахме на хиляди хора да постигнат мечтите си</h2>
+                    <p>От 2020 година насам сме одобрили над 50 милиона лева кредити и сме помогнали на повече от 15,000 души да реализират своите планове и мечти.</p>
+                    <div class="success-highlights">
+                        <div class="highlight-item">
+                            <i class="fas fa-home"></i>
+                            <div>
+                                <strong>5,200+</strong>
+                                <span>Жилищни кредити</span>
+                            </div>
+                        </div>
+                        <div class="highlight-item">
+                            <i class="fas fa-car"></i>
+                            <div>
+                                <strong>3,800+</strong>
+                                <span>Автомобилни кредити</span>
+                            </div>
+                        </div>
+                        <div class="highlight-item">
+                            <i class="fas fa-graduation-cap"></i>
+                            <div>
+                                <strong>2,100+</strong>
+                                <span>Образователни кредити</span>
+                            </div>
+                        </div>
+                        <div class="highlight-item">
+                            <i class="fas fa-store"></i>
+                            <div>
+                                <strong>3,900+</strong>
+                                <span>Бизнес кредити</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="success-image">
+                                         <img src="public/images/happy-people.jpg" alt="Success story - happy customers celebrating with high-five" class="success-photo">
+                    <div class="success-overlay">
+                        <div class="success-stat">
+                            <div class="big-number">50M+</div>
+                            <div class="big-label">лв одобрени кредити</div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </section>
@@ -324,6 +406,13 @@
     </footer>
 
     <!-- Sticky Help Button -->
+    <!-- Enhanced UI Elements -->
+    <div class="scroll-progress" id="scroll-progress"></div>
+    
+    <button class="scroll-to-top" id="scroll-to-top">
+        <i class="fas fa-arrow-up"></i>
+    </button>
+    
     <div class="help-button" onclick="toggleHelp()">
         <i class="fas fa-question"></i>
     </div>

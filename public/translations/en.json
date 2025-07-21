@@ -17,7 +17,9 @@
       "secure": "100% secure", 
       "online": "Online process"
     },
-    "cta_button": "Apply now"
+    "cta_button": "Apply now",
+    "success_badge": "Approved loans",
+    "customer_count": "Happy customers"
   },
   "calculator": {
     "title": "Loan Calculator",
@@ -52,6 +54,11 @@
   },
   "testimonials": {
     "title": "What our clients say",
+    "subtitle": "Over 15,000 satisfied customers have trusted our services",
+    "stats": {
+      "approval": "Approval",
+      "clients": "Clients"
+    },
     "testimonial1": {
       "text": "\"Very fast and convenient process. I received the money the same day!\"",
       "author": "Maria I.",
@@ -194,5 +201,17 @@
     "title": "Document capture",
     "capture": "Capture",
     "cancel": "Cancel"
+  },
+  "success_story": {
+    "badge": "Success Story",
+    "title": "We helped thousands of people achieve their dreams",
+    "description": "Since 2020, we have approved over 50 million BGN in loans and helped more than 15,000 people realize their plans and dreams.",
+    "highlights": {
+      "housing": "Housing loans",
+      "auto": "Auto loans",
+      "education": "Education loans", 
+      "business": "Business loans"
+    },
+    "big_stat": "BGN approved loans"
   }
 } 
