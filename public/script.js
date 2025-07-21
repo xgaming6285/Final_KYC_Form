@@ -69,10 +69,13 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const total = monthly * numberOfPayments;
         
-        // Update display
-        monthlyPayment.textContent = Math.round(monthly) + ' лв';
+        // Update display with proper currency
+        const currency = translationManager ? translationManager.t('calculator.currency') : 'лв';
+        const locale = translationManager && translationManager.getCurrentLanguage() === 'en' ? 'en-US' : 'bg-BG';
+        
+        monthlyPayment.textContent = Math.round(monthly) + ' ' + currency;
         interestRate.textContent = baseRate.toFixed(1) + '%';
-        totalAmount.textContent = Math.round(total).toLocaleString('bg-BG') + ' лв';
+        totalAmount.textContent = Math.round(total).toLocaleString(locale) + ' ' + currency;
     }
 
     // Calculate interest rate based on amount and period
@@ -168,21 +171,51 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// Language Selector Functionality
-document.addEventListener('DOMContentLoaded', function() {
-    const languageSelect = document.getElementById('language-select');
-    
-    languageSelect.addEventListener('change', function() {
-        const selectedLang = this.value;
+// Translation System Initialization (Opt-in only)
+let translationManager;
+
+document.addEventListener('DOMContentLoaded', async function() {
+    try {
+        // Initialize translation system (doesn't translate anything automatically)
+        translationManager = new TranslationManager();
+        await translationManager.init();
         
-        // In a real application, this would switch the language
-        // For demo purposes, we'll just show an alert
-        if (selectedLang === 'en') {
-            alert('Language switching to English would be implemented here.\n\nВ реален сценарий тук ще се сменя езикът на английски.');
-            this.value = 'bg'; // Reset to Bulgarian
-        }
-    });
+        console.log('Translation system initialized successfully');
+        
+        // Add observer for language changes (optional - for custom behaviors)
+        translationManager.addObserver((language) => {
+            console.log(`Language changed to: ${language}`);
+            
+            // Custom behaviors on language change can be added here
+            // For example, reformat numbers, dates, etc.
+            updateNumberFormats(language);
+        });
+    } catch (error) {
+        console.log('Translation system failed to load, site will work without translations');
+    }
 });
+
+// Update number formats based on language
+function updateNumberFormats(language) {
+    const locale = language === 'bg' ? 'bg-BG' : 'en-US';
+    
+    // Update loan calculator display
+    const amountValue = document.getElementById('amount-value');
+    const totalAmount = document.getElementById('total-amount');
+    
+    if (amountValue) {
+        const amount = parseInt(amountValue.textContent.replace(/[^\d]/g, ''));
+        amountValue.textContent = amount.toLocaleString(locale);
+    }
+    
+    if (totalAmount) {
+        const total = parseInt(totalAmount.textContent.replace(/[^\d]/g, ''));
+        if (!isNaN(total)) {
+            const currency = translationManager.t('calculator.currency');
+            totalAmount.textContent = `${total.toLocaleString(locale)} ${currency}`;
+        }
+    }
+}
 
 // Form Validation and Enhancement
 document.addEventListener('DOMContentLoaded', function() {
@@ -851,7 +884,8 @@ function submitApplication() {
     // Show loading state
     const submitBtn = document.querySelector('.submit-btn');
     const originalText = submitBtn.innerHTML;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Изпращане...';
+    const loadingText = translationManager ? translationManager.t('verification.loading', 'Изпращане...') : 'Изпращане...';
+    submitBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${loadingText}`;
     submitBtn.disabled = true;
     
     // Simulate application submission

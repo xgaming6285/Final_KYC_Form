@@ -1,0 +1,198 @@
+{
+  "meta": {
+    "title": "CreditoPro - Fast Online Loans",
+    "lang": "en"
+  },
+  "navigation": {
+    "home": "Home",
+    "calculator": "Loans", 
+    "how_it_works": "How it Works",
+    "contact": "Contact"
+  },
+  "hero": {
+    "title": "Quick loan up to <span class=\"highlight\">50,000 BGN</span>",
+    "subtitle": "Get approval in minutes, money in your account within an hour. No hidden fees, transparent conditions.",
+    "features": {
+      "fast": "In 15 minutes",
+      "secure": "100% secure", 
+      "online": "Online process"
+    },
+    "cta_button": "Apply now"
+  },
+  "calculator": {
+    "title": "Loan Calculator",
+    "subtitle": "Calculate your loan terms",
+    "loan_amount": "Loan amount",
+    "loan_period": "Repayment period",
+    "currency": "BGN",
+    "months": "months",
+    "details_title": "Loan details",
+    "monthly_payment": "Monthly payment:",
+    "interest_rate": "Interest rate:",
+    "total_amount": "Total to repay:",
+    "apply_button": "Apply for this loan"
+  },
+  "how_it_works": {
+    "title": "How does it work?",
+    "subtitle": "Simple process in 3 steps",
+    "steps": {
+      "step1": {
+        "title": "Fill out the application",
+        "description": "Enter your details and choose the desired amount and term"
+      },
+      "step2": {
+        "title": "Get approval", 
+        "description": "Automatic verification and response within minutes"
+      },
+      "step3": {
+        "title": "Receive the money",
+        "description": "Funds are transferred directly to your bank account"
+      }
+    }
+  },
+  "testimonials": {
+    "title": "What our clients say",
+    "testimonial1": {
+      "text": "\"Very fast and convenient process. I received the money the same day!\"",
+      "author": "Maria I.",
+      "location": "Sofia"
+    },
+    "testimonial2": {
+      "text": "\"Excellent service and transparent conditions. I recommend!\"",
+      "author": "Peter S.",
+      "location": "Plovdiv"
+    },
+    "testimonial3": {
+      "text": "\"They saved me in a difficult situation. Thank you for the professionalism!\"",
+      "author": "Elena D.",
+      "location": "Varna"
+    }
+  },
+  "faq": {
+    "title": "Frequently asked questions",
+    "questions": {
+      "q1": {
+        "question": "How long does the approval process take?",
+        "answer": "Usually the approval process takes between 15-30 minutes. In most cases you get a response immediately after submitting your application."
+      },
+      "q2": {
+        "question": "What documents are required?",
+        "answer": "Only an ID card and proof of income are required. All documents can be uploaded online."
+      },
+      "q3": {
+        "question": "Are there any hidden fees?",
+        "answer": "No, there are no hidden fees. All costs are clearly stated before signing the contract."
+      },
+      "q4": {
+        "question": "Can I repay the loan early?",
+        "answer": "Yes, you can repay the loan early without additional early repayment fees."
+      }
+    }
+  },
+  "contact": {
+    "title": "Contact us",
+    "phone_label": "Phone",
+    "phone": "0700 12 345",
+    "email_label": "Email",
+    "email": "info@creditopro.bg",
+    "hours_label": "Working hours",
+    "hours": "Mon-Fri: 09:00-18:00"
+  },
+  "footer": {
+    "description": "Your reliable partner for fast online loans.",
+    "services": {
+      "title": "Services",
+      "consumer_loans": "Consumer loans",
+      "quick_loans": "Quick loans",
+      "refinancing": "Refinancing"
+    },
+    "information": {
+      "title": "Information",
+      "terms": "Terms and conditions",
+      "privacy": "Privacy",
+      "gdpr": "GDPR"
+    },
+    "copyright": "© 2024 CreditoPro. All rights reserved."
+  },
+  "help": {
+    "title": "Need help?",
+    "subtitle": "Contact us:",
+    "call": "Call us",
+    "email": "Send email",
+    "close": "Close"
+  },
+  "verification": {
+    "title": "Identity Verification",
+    "steps": {
+      "personal": "Personal Data",
+      "documents": "Documents", 
+      "face": "Verification"
+    },
+    "personal_info": {
+      "title": "Enter your personal information",
+      "first_name": "First Name",
+      "last_name": "Last Name",
+      "egn": "Personal ID",
+      "phone": "Phone",
+      "email": "Email address",
+      "address": "Address",
+      "income": "Monthly income (BGN)",
+      "employment": "Employment status",
+      "employment_options": {
+        "select": "Select",
+        "employed": "Employed under contract",
+        "self_employed": "Self-employed",
+        "retired": "Retired",
+        "unemployed": "Unemployed"
+      }
+    },
+    "documents": {
+      "title": "Upload your documents",
+      "id_card": "ID Card",
+      "id_description": "Upload a photo of both sides of your ID card",
+      "front_side": "Front side",
+      "back_side": "Back side", 
+      "upload_text": "Click or drop file here",
+      "camera_front": "Use camera for front side",
+      "camera_back": "Use camera for back side",
+      "income_doc": "Income document",
+      "income_description": "Work record, contract, tax authority statement or other document"
+    },
+    "face": {
+      "title": "Face verification",
+      "description": "Take a selfie to compare with the face on your ID card",
+      "tips": {
+        "lighting": "Ensure good lighting",
+        "look": "Look directly at the camera",
+        "remove": "Remove hats and glasses"
+      },
+      "placeholder": "Click to start camera",
+      "start_camera": "Start camera",
+      "take_photo": "Take photo",
+      "upload_photo": "Upload photo"
+    },
+    "buttons": {
+      "continue": "Continue",
+      "back": "Back",
+      "submit": "Submit application",
+      "close": "Close"
+    },
+    "loading": "Submitting...",
+    "success": {
+      "title": "Application submitted successfully!",
+      "message": "Thank you for your trust! You will receive a response within 15-30 minutes.",
+      "next_steps": "Next steps:",
+      "steps": {
+        "step1": "We will verify your documents",
+        "step2": "We will send you an email with the result",
+        "step3": "If approved - funds will be transferred"
+      },
+      "contact_message": "For questions contact us:"
+    }
+  },
+  "camera": {
+    "title": "Document capture",
+    "capture": "Capture",
+    "cancel": "Cancel"
+  }
+} 
