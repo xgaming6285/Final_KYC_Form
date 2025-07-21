@@ -345,6 +345,265 @@
         </div>
     </div>
 
+    <!-- Verification Form Modal -->
+    <div class="verification-modal" id="verification-modal">
+        <div class="verification-content">
+            <div class="verification-header">
+                <h2><i class="fas fa-shield-check"></i> Верификация на самоличност</h2>
+                <button class="close-verification" onclick="closeVerification()">&times;</button>
+            </div>
+            
+            <div class="verification-steps">
+                <div class="step-indicator">
+                    <div class="step-item active" data-step="1">
+                        <div class="step-number">1</div>
+                        <span>Лични данни</span>
+                    </div>
+                    <div class="step-item" data-step="2">
+                        <div class="step-number">2</div>
+                        <span>Документи</span>
+                    </div>
+                    <div class="step-item" data-step="3">
+                        <div class="step-number">3</div>
+                        <span>Верификация</span>
+                    </div>
+                </div>
+
+                <!-- Step 1: Personal Information -->
+                <div class="verification-step active" id="step-1">
+                    <h3>Въведете вашите лични данни</h3>
+                    <form id="personal-info-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="first-name">Име</label>
+                                <input type="text" id="first-name" name="firstName" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="last-name">Фамилия</label>
+                                <input type="text" id="last-name" name="lastName" required>
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="egn">ЕГН</label>
+                                <input type="text" id="egn" name="egn" maxlength="10" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="phone">Телефон</label>
+                                <input type="tel" id="phone" name="phone" required>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="email">Имейл адрес</label>
+                            <input type="email" id="email" name="email" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="address">Адрес</label>
+                            <textarea id="address" name="address" rows="3" required></textarea>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="income">Месечен доход (лв)</label>
+                                <input type="number" id="income" name="income" min="0" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="employment">Трудов статус</label>
+                                <select id="employment" name="employment" required>
+                                    <option value="">Изберете</option>
+                                    <option value="employed">Нает по трудов договор</option>
+                                    <option value="self-employed">Самонаети</option>
+                                    <option value="retired">Пенсионер</option>
+                                    <option value="unemployed">Безработен</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <button type="button" class="next-btn" onclick="nextStep(2)">
+                            Продължи <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Step 2: Document Upload -->
+                <div class="verification-step" id="step-2">
+                    <h3>Качете вашите документи</h3>
+                    
+                    <div class="document-section">
+                        <h4><i class="fas fa-id-card"></i> Лична карта</h4>
+                        <p class="section-description">Качете снимка от двете страни на вашата лична карта</p>
+                        
+                        <div class="upload-options">
+                            <div class="upload-option">
+                                <h5>Предна страна</h5>
+                                <div class="upload-area" id="id-front-upload">
+                                    <i class="fas fa-cloud-upload-alt"></i>
+                                    <p>Кликнете или пуснете файл тук</p>
+                                    <input type="file" id="id-front" accept="image/*" hidden>
+                                </div>
+                                <div class="preview" id="id-front-preview"></div>
+                            </div>
+                            
+                            <div class="upload-option">
+                                <h5>Задна страна</h5>
+                                <div class="upload-area" id="id-back-upload">
+                                    <i class="fas fa-cloud-upload-alt"></i>
+                                    <p>Кликнете или пуснете файл тук</p>
+                                    <input type="file" id="id-back" accept="image/*" hidden>
+                                </div>
+                                <div class="preview" id="id-back-preview"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="camera-option">
+                            <button type="button" class="camera-btn" onclick="openCamera('id-front')">
+                                <i class="fas fa-camera"></i> Използвай камера за предна страна
+                            </button>
+                            <button type="button" class="camera-btn" onclick="openCamera('id-back')">
+                                <i class="fas fa-camera"></i> Използвай камера за задна страна
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="document-section">
+                        <h4><i class="fas fa-file-invoice"></i> Документ за доходи</h4>
+                        <p class="section-description">Трудова книжка, договор, справка от НАП или друг документ</p>
+                        
+                        <div class="upload-area" id="income-upload">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>Кликнете или пуснете файл тук</p>
+                            <input type="file" id="income-doc" accept="image/*,.pdf" hidden>
+                        </div>
+                        <div class="preview" id="income-preview"></div>
+                    </div>
+                    
+                    <div class="step-navigation">
+                        <button type="button" class="prev-btn" onclick="prevStep(1)">
+                            <i class="fas fa-arrow-left"></i> Назад
+                        </button>
+                        <button type="button" class="next-btn" onclick="nextStep(3)">
+                            Продължи <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Step 3: Face Verification -->
+                <div class="verification-step" id="step-3">
+                    <h3>Верификация на лице</h3>
+                    <p class="section-description">Направете селфи за сравнение с лицето от личната карта</p>
+                    
+                    <div class="face-verification-section">
+                        <div class="verification-info">
+                            <div class="info-item">
+                                <i class="fas fa-lightbulb"></i>
+                                <span>Осигурете добро осветление</span>
+                            </div>
+                            <div class="info-item">
+                                <i class="fas fa-eye"></i>
+                                <span>Погледнете директно в камерата</span>
+                            </div>
+                            <div class="info-item">
+                                <i class="fas fa-user"></i>
+                                <span>Премахнете шапки и очила</span>
+                            </div>
+                        </div>
+                        
+                        <div class="face-capture">
+                            <video id="face-video" width="320" height="240" autoplay muted style="display: none;"></video>
+                            <canvas id="face-canvas" width="320" height="240" style="display: none;"></canvas>
+                            <div class="face-placeholder" id="face-placeholder">
+                                <i class="fas fa-user-circle"></i>
+                                <p>Кликнете за стартиране на камерата</p>
+                            </div>
+                            <div class="face-preview" id="face-preview"></div>
+                        </div>
+                        
+                        <div class="face-controls">
+                            <button type="button" class="camera-btn" onclick="startFaceCapture()">
+                                <i class="fas fa-video"></i> Стартирай камера
+                            </button>
+                            <button type="button" class="capture-btn" onclick="capturePhoto()" style="display: none;">
+                                <i class="fas fa-camera"></i> Направи снимка
+                            </button>
+                            <button type="button" class="upload-btn" onclick="uploadFaceImage()">
+                                <i class="fas fa-upload"></i> Качи снимка
+                            </button>
+                        </div>
+                        
+                        <input type="file" id="face-upload" accept="image/*" hidden>
+                    </div>
+                    
+                    <div class="step-navigation">
+                        <button type="button" class="prev-btn" onclick="prevStep(2)">
+                            <i class="fas fa-arrow-left"></i> Назад
+                        </button>
+                        <button type="button" class="submit-btn" onclick="submitApplication()">
+                            Изпрати заявката <i class="fas fa-check"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Success Step -->
+                <div class="verification-step" id="step-success" style="display: none;">
+                    <div class="success-content">
+                        <div class="success-icon">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <h3>Заявката е изпратена успешно!</h3>
+                        <p>Благодарим ви за доверието! Ще получите отговор в рамките на 15-30 минути.</p>
+                        
+                        <div class="next-steps">
+                            <h4>Следващи стъпки:</h4>
+                            <ol>
+                                <li>Ще проверим вашите документи</li>
+                                <li>Ще ви изпратим имейл с резултата</li>
+                                <li>При одобрение - средствата ще бъдат преведени</li>
+                            </ol>
+                        </div>
+                        
+                        <div class="contact-info">
+                            <p>За въпроси се свържете с нас:</p>
+                            <p><i class="fas fa-phone"></i> 0700 12 345</p>
+                            <p><i class="fas fa-envelope"></i> info@creditopro.bg</p>
+                        </div>
+                        
+                        <button type="button" class="close-btn" onclick="closeVerification()">
+                            Затвори <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Camera Modal -->
+    <div class="camera-modal" id="camera-modal">
+        <div class="camera-content">
+            <div class="camera-header">
+                <h3>Заснемане на документ</h3>
+                <button class="close-camera" onclick="closeCameraModal()">&times;</button>
+            </div>
+            <div class="camera-body">
+                <video id="camera-video" autoplay muted></video>
+                <canvas id="camera-canvas" style="display: none;"></canvas>
+                <div class="camera-overlay">
+                    <div class="camera-frame"></div>
+                </div>
+            </div>
+            <div class="camera-controls">
+                <button onclick="captureDocument()" class="capture-document-btn">
+                    <i class="fas fa-camera"></i> Заснеми
+                </button>
+                <button onclick="closeCameraModal()" class="cancel-btn">
+                    Отказ
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script src="script.js"></script>
 </body>
 </html> 
