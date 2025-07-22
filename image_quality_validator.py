@@ -13,7 +13,7 @@ class ImageQualityValidator:
     def __init__(self):
         pass
     
-    def detect_blur(self, image, threshold=50):
+    def detect_blur(self, image, threshold=30):
         """
         Detect if image is blurred using Laplacian variance method.
         Returns True if image is clear (not blurred), False if blurred.
@@ -58,9 +58,9 @@ class ImageQualityValidator:
             
             # If our approximated contour has four points, we can assume it's the ID card
             if len(approx) == 4:
-                # Check if it's large enough to be an ID card (reduced threshold)
+                # Check if it's large enough to be an ID card (very low threshold)
                 area = cv2.contourArea(contour)
-                if area > 15000:  # Reduced minimum area for ID card
+                if area > 10000:  # Very low minimum area for ID card
                     return approx, area
         
         return None, 0
@@ -193,24 +193,18 @@ class ImageQualityValidator:
             results['issues'].append('Image lacks sufficient detail/sharpness')
             results['recommendations'].append('Ensure proper focus and reduce camera shake')
         
-        # 5. Overall validation
+        # 5. Overall validation - simplified to just corners and basic blur
         results['is_valid'] = bool(
             is_clear and 
-            corners is not None and 
-            is_good_lighting and 
-            sharpness_score >= 20
+            corners is not None
         )
         
-        # 6. Generate quality score (0-100)
+        # 6. Generate quality score (0-100) - simplified
         quality_factors = []
         if is_clear:
-            quality_factors.append(25)
+            quality_factors.append(50)  # Blur check worth 50 points
         if corners is not None:
-            quality_factors.append(25)
-        if is_good_lighting:
-            quality_factors.append(25)
-        if sharpness_score >= 20: # Changed from 30 to 20
-            quality_factors.append(25)
+            quality_factors.append(50)  # Corner detection worth 50 points
         
         results['quality_score'] = int(sum(quality_factors))  # Convert to Python int
         

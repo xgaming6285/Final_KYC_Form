@@ -120,35 +120,20 @@ def process_id():
             if image is None:
                 return jsonify({'error': 'Could not read image file'}), 400
             
-            # Validate image quality instead of extracting text
-            validation_result = quality_validator.validate_id_image(image)
-            feedback = quality_validator.get_quality_feedback(validation_result)
-            
-            if validation_result['is_valid']:
-                result = {
-                    'success': True,
-                    'validation': validation_result,
-                    'feedback': feedback,
-                    'image_path': filepath,
-                    'session_id': session_id,
-                    'message': f'ID {side} side captured successfully!',
-                    'quality_score': int(validation_result['quality_score'])
-                }
+            # Skip quality validation - just save the image and proceed
+            result = {
+                'success': True,
+                'image_path': filepath,
+                'session_id': session_id,
+                'message': f'ID {side} side captured successfully!',
+                'is_valid': True  # Always consider valid since user confirms manually
+            }
             
             # Add next_step field to redirect to back side when front is complete
             if side == 'front':
                 result['next_step'] = 'back'
             elif side == 'back':
                 result['next_step'] = 'face'
-        else:
-            result = {
-                'success': False,
-                'validation': validation_result,
-                'feedback': feedback,
-                'error': feedback['message'],
-                'recommendations': feedback.get('recommendations', ''),
-                'quality_score': int(validation_result['quality_score'])
-            }
     
     # Process image data from camera
     elif 'image_data' in request.form:
@@ -166,39 +151,21 @@ def process_id():
             image_pil.save(filepath)
             print(f"Saved captured image to {filepath}")
             
-            # Convert PIL image to OpenCV format
-            image_np = np.array(image_pil)
-            image = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
+            # Skip quality validation - just save the image and proceed
+            result = {
+                'success': True,
+                'image_path': filepath,
+                'session_id': session_id,
+                'message': f'ID {side} side captured successfully!',
+                'is_valid': True  # Always consider valid since user confirms manually
+            }
             
-            # Validate image quality instead of extracting text
-            validation_result = quality_validator.validate_id_image(image)
-            feedback = quality_validator.get_quality_feedback(validation_result)
-            
-            if validation_result['is_valid']:
-                result = {
-                    'success': True,
-                    'validation': validation_result,
-                    'feedback': feedback,
-                    'image_path': filepath,
-                    'session_id': session_id,
-                    'message': f'ID {side} side captured successfully!',
-                    'quality_score': int(validation_result['quality_score'])
-                }
+            # Add next_step field to redirect to back side when front is complete
+            if side == 'front':
+                result['next_step'] = 'back'
+            elif side == 'back':
+                result['next_step'] = 'face'
                 
-                # Add next_step field to redirect to back side when front is complete
-                if side == 'front':
-                    result['next_step'] = 'back'
-                elif side == 'back':
-                    result['next_step'] = 'face'
-            else:
-                result = {
-                    'success': False,
-                    'validation': validation_result,
-                    'feedback': feedback,
-                    'error': feedback['message'],
-                    'recommendations': feedback.get('recommendations', ''),
-                    'quality_score': int(validation_result['quality_score'])
-                }
         except Exception as e:
             return jsonify({'error': f'Error processing image data: {str(e)}'}), 400
     
