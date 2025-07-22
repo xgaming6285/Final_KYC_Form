@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ID Card Capture - Manual Mode</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+    <style>
+        .capture-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .video-container {
+            position: relative;
+            width: 100%;
+            max-width: 640px;
+            margin: 20px auto;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        
+        video {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        
+        #overlay-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 2;
+        }
+        
+        .capture-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            z-index: 3;
+        }
+        
+        #status-message {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 10px;
+        }
+        
+        .quality-indicator {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        
+        .quality-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            backdrop-filter: blur(5px);
+            transition: all 0.3s ease;
+        }
+        
+        .quality-item.success {
+            background: rgba(76, 175, 80, 0.8);
+            color: white;
+        }
+        
+        .quality-item.warning {
+            background: rgba(255, 193, 7, 0.8);
+            color: white;
+        }
+        
+        .quality-item.error {
+            background: rgba(244, 67, 54, 0.8);
+            color: white;
+        }
+        
+        .quality-icon {
+            font-size: 14px;
+        }
+        
+        .controls {
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .btn {
+            margin: 5px;
+            padding: 10px 20px;
+        }
+        
+        .preview-container {
+            margin-top: 20px;
+            text-align: center;
+        }
+        
+        .preview-image {
+            max-width: 100%;
+            border: 2px solid #28a745;
+            border-radius: 10px;
+        }
+        
+        .validation-feedback {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        
+        .validation-success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        
+        .validation-error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        
+        .quality-score {
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        
+        .step-indicator {
+            margin-bottom: 20px;
+        }
+        
+        .step {
+            display: inline-block;
+            padding: 8px 16px;
+            margin: 0 5px;
+            border-radius: 20px;
+            background: #e9ecef;
+            color: #6c757d;
+        }
+        
+        .step.active {
+            background: #007bff;
+            color: white;
+        }
+        
+        .step.completed {
+            background: #28a745;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="capture-container">
+            <h1 class="text-center mb-4">ID Card Manual Capture</h1>
+            
+            <!-- Step Indicator -->
+            <div class="step-indicator text-center">
+                <span id="step-front" class="step active">1. Front Side</span>
+                <span id="step-back" class="step">2. Back Side</span>
+                <span id="step-face" class="step">3. Face Verification</span>
+            </div>
+            
+            <!-- Side Selection -->
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="document_type" class="form-label">Document Type:</label>
+                    <select id="document_type" class="form-control">
+                        <option value="bulgarian_id">Bulgarian ID Card</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="side" class="form-label">Side:</label>
+                    <select id="side" class="form-control">
+                        <option value="front">Front Side</option>
+                        <option value="back">Back Side</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Instructions -->
+            <div class="alert alert-info">
+                <h5>Instructions:</h5>
+                <ul id="instruction-list">
+                    <li>Position the <span id="current-side">front</span> side of your ID card within the camera frame</li>
+                    <li>Ensure all 4 corners are visible</li>
+                    <li>Make sure the image is clear and not blurred</li>
+                    <li>Use good lighting, avoid shadows</li>
+                    <li>Click "Capture" when ready</li>
+                </ul>
+            </div>
+            
+            <!-- Camera Container -->
+            <div class="video-container" id="video-container">
+                <video id="video" autoplay muted playsinline></video>
+                <canvas id="overlay-canvas" style="position: absolute; top: 0; left: 0; pointer-events: none;"></canvas>
+                <div class="capture-overlay">
+                    <div id="status-message">Initializing camera...</div>
+                    <div id="quality-indicator" class="quality-indicator" style="display: none;">
+                        <div class="quality-item" id="blur-indicator">
+                            <span class="quality-icon">🔍</span>
+                            <span class="quality-text">Checking sharpness...</span>
+                        </div>
+                        <div class="quality-item" id="corners-indicator">
+                            <span class="quality-icon">⬜</span>
+                            <span class="quality-text">Detecting ID corners...</span>
+                        </div>
+                        <div class="quality-item" id="lighting-indicator">
+                            <span class="quality-icon">💡</span>
+                            <span class="quality-text">Checking lighting...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Controls -->
+            <div class="controls">
+                <button id="captureBtn" class="btn btn-primary btn-lg" disabled>📷 Capture</button>
+                <button id="retakeBtn" class="btn btn-secondary" style="display: none;">🔄 Retake</button>
+                <button id="validateBtn" class="btn btn-success" style="display: none;">✅ Validate & Continue</button>
+            </div>
+            
+            <!-- Camera Error -->
+            <div id="camera-error" class="alert alert-danger" style="display: none;">
+                <h5>Camera Access Error</h5>
+                <p id="error-details">Unable to access camera. Please check permissions.</p>
+            </div>
+            
+            <!-- Preview Container -->
+            <div class="preview-container" id="preview-container" style="display: none;">
+                <h5>Captured Image</h5>
+                <img id="captured-image" class="preview-image" alt="Captured ID">
+            </div>
+            
+            <!-- Validation Feedback -->
+            <div id="validation-feedback" class="validation-feedback" style="display: none;">
+                <h5 id="feedback-title">Validation Result</h5>
+                <p id="feedback-message"></p>
+                <div id="quality-score" class="quality-score"></div>
+                <div id="recommendations" style="margin-top: 10px;"></div>
+            </div>
+            
+            <!-- Hidden Elements -->
+            <canvas id="canvas" style="display: none;"></canvas>
+            
+        </div>
+    </div>
+
+    <script>
+        // Variables
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const overlayCanvas = document.getElementById('overlay-canvas');
+        const captureBtn = document.getElementById('captureBtn');
+        const retakeBtn = document.getElementById('retakeBtn');
+        const validateBtn = document.getElementById('validateBtn');
+        const capturedImage = document.getElementById('captured-image');
+        const previewContainer = document.getElementById('preview-container');
+        const validationFeedback = document.getElementById('validation-feedback');
+        const statusMessage = document.getElementById('status-message');
+        const qualityIndicator = document.getElementById('quality-indicator');
+        const cameraError = document.getElementById('camera-error');
+        const errorDetails = document.getElementById('error-details');
+        
+        // Real-time validation variables
+        let currentCapturedImage = null;
+        let isProcessingFrame = false;
+        let lastProcessTime = 0;
+        let processingInterval = 500; // Process every 500ms
+        let animationFrameId = null;
+        let qualityChecksPassed = {
+            blur: false,
+            corners: false,
+            lighting: false
+        };
+        let validationHistory = [];
+        let consecutiveGoodFrames = 0;
+        const requiredGoodFrames = 3; // Require 3 consecutive good frames before enabling capture
+        
+        // State variables
+        let sessionId = localStorage.getItem('kyc_session_id') || generateUUID();
+        let stream = null;
+        
+        // Generate UUID for session tracking
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+        
+        // Initialize camera
+        async function initCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'environment',
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                });
+                
+                video.srcObject = stream;
+                
+                video.onloadedmetadata = () => {
+                    // Set overlay canvas dimensions to match video
+                    overlayCanvas.width = video.videoWidth;
+                    overlayCanvas.height = video.videoHeight;
+                    
+                    statusMessage.textContent = "Camera ready. Position ID card in frame.";
+                    qualityIndicator.style.display = 'flex';
+                    
+                    // Start real-time quality validation
+                    startRealTimeValidation();
+                };
+                
+            } catch (error) {
+                console.error('Error accessing camera:', error);
+                cameraError.style.display = 'block';
+                errorDetails.textContent = `Camera error: ${error.message}`;
+                
+                // Show alternative upload option
+                statusMessage.textContent = "Camera not available. Please use file upload instead.";
+            }
+        }
+        
+        // Update UI when side changes
+        function updateSideUI() {
+            const side = document.getElementById('side').value;
+            const currentSideSpan = document.getElementById('current-side');
+            const stepFront = document.getElementById('step-front');
+            const stepBack = document.getElementById('step-back');
+            
+            currentSideSpan.textContent = side;
+            
+            if (side === 'front') {
+                stepFront.classList.add('active');
+                stepBack.classList.remove('active');
+            } else {
+                stepFront.classList.remove('active');
+                stepBack.classList.add('active');
+            }
+            
+            // Reset validation state when switching sides
+            consecutiveGoodFrames = 0;
+            disableCapture();
+            resetQualityIndicators();
+            
+            // Hide any previous validation feedback
+            validationFeedback.style.display = 'none';
+            previewContainer.style.display = 'none';
+            
+            // Show live video elements
+            video.style.display = 'block';
+            qualityIndicator.style.display = 'flex';
+            overlayCanvas.style.display = 'block';
+            
+            // Reset buttons
+            captureBtn.style.display = 'inline-block';
+            retakeBtn.style.display = 'none';
+            validateBtn.style.display = 'none';
+            
+            statusMessage.textContent = `Position the ${side} side of your ID card within the frame`;
+            
+            // Restart real-time validation if video is ready
+            if (video.videoWidth && video.videoHeight) {
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                }
+                startRealTimeValidation();
+            }
+        }
+        
+        // Capture image
+        function captureImage() {
+            // Stop real-time validation
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            
+            const context = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            const imageData = canvas.toDataURL('image/jpeg', 0.8);
+            currentCapturedImage = imageData;
+            
+            // Show captured image
+            capturedImage.src = imageData;
+            previewContainer.style.display = 'block';
+            
+            // Hide live video and quality indicators
+            video.style.display = 'none';
+            qualityIndicator.style.display = 'none';
+            overlayCanvas.style.display = 'none';
+            
+            // Update buttons
+            captureBtn.style.display = 'none';
+            retakeBtn.style.display = 'inline-block';
+            validateBtn.style.display = 'inline-block';
+            
+            statusMessage.textContent = 'Image captured! Click Validate to check quality.';
+        }
+        
+        // Retake image
+        function retakeImage() {
+            previewContainer.style.display = 'none';
+            validationFeedback.style.display = 'none';
+            
+            // Show live video and restart real-time validation
+            video.style.display = 'block';
+            qualityIndicator.style.display = 'flex';
+            overlayCanvas.style.display = 'block';
+            
+            captureBtn.style.display = 'inline-block';
+            retakeBtn.style.display = 'none';
+            validateBtn.style.display = 'none';
+            
+            currentCapturedImage = null;
+            consecutiveGoodFrames = 0;
+            disableCapture();
+            
+            const side = document.getElementById('side').value;
+            statusMessage.textContent = `Position the ${side} side of your ID card within the frame`;
+            
+            // Restart real-time validation
+            startRealTimeValidation();
+        }
+        
+        // Validate captured image
+        async function validateImage() {
+            if (!currentCapturedImage) return;
+            
+            validateBtn.disabled = true;
+            validateBtn.textContent = '⏳ Validating...';
+            
+            try {
+                const side = document.getElementById('side').value;
+                const documentType = document.getElementById('document_type').value;
+                
+                const response = await fetch('/process_id', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        'image_data': currentCapturedImage,
+                        'document_type': documentType,
+                        'side': side,
+                        'session_id': sessionId
+                    })
+                });
+                
+                const result = await response.json();
+                showValidationResult(result);
+                
+                if (result.success && result.next_step) {
+                    setTimeout(() => {
+                        if (result.next_step === 'back') {
+                            // Move to back side
+                            document.getElementById('side').value = 'back';
+                            updateSideUI();
+                            retakeImage();
+                        } else if (result.next_step === 'face') {
+                            // Move to face verification
+                            window.location.href = '/face_verification?session_id=' + sessionId;
+                        }
+                    }, 2000);
+                }
+                
+            } catch (error) {
+                console.error('Validation error:', error);
+                showValidationResult({
+                    success: false,
+                    error: 'Network error during validation',
+                    quality_score: 0
+                });
+            }
+            
+            validateBtn.disabled = false;
+            validateBtn.textContent = '✅ Validate & Continue';
+        }
+        
+        // Show validation result
+        function showValidationResult(result) {
+            const feedbackTitle = document.getElementById('feedback-title');
+            const feedbackMessage = document.getElementById('feedback-message');
+            const qualityScore = document.getElementById('quality-score');
+            const recommendations = document.getElementById('recommendations');
+            
+            validationFeedback.style.display = 'block';
+            
+            if (result.success) {
+                validationFeedback.className = 'validation-feedback validation-success';
+                feedbackTitle.textContent = '✅ Validation Successful!';
+                feedbackMessage.textContent = result.message || 'Image quality is good';
+                qualityScore.textContent = `Quality Score: ${result.quality_score}/100`;
+                recommendations.textContent = '';
+                
+                if (result.next_step) {
+                    const nextStep = result.next_step === 'back' ? 'back side' : 'face verification';
+                    feedbackMessage.textContent += ` Proceeding to ${nextStep}...`;
+                }
+            } else {
+                validationFeedback.className = 'validation-feedback validation-error';
+                feedbackTitle.textContent = '❌ Validation Failed';
+                feedbackMessage.textContent = result.error || 'Image quality needs improvement';
+                qualityScore.textContent = `Quality Score: ${result.quality_score || 0}/100`;
+                recommendations.textContent = result.recommendations || 'Please retake the image with better quality';
+            }
+        }
+        
+        // Event listeners
+        captureBtn.addEventListener('click', captureImage);
+        retakeBtn.addEventListener('click', retakeImage);
+        validateBtn.addEventListener('click', validateImage);
+        
+        document.getElementById('side').addEventListener('change', updateSideUI);
+        
+        // Initialize
+        localStorage.setItem('kyc_session_id', sessionId);
+        updateSideUI();
+        initCamera();
+
+        // Start real-time quality validation
+        function startRealTimeValidation() {
+            function processFrame() {
+                if (!video.videoWidth || !video.videoHeight) {
+                    // Video not ready yet, try again
+                    animationFrameId = requestAnimationFrame(processFrame);
+                    return;
+                }
+                
+                const now = Date.now();
+                
+                // Only process frames at specified interval to avoid overloading
+                if (!isProcessingFrame && now - lastProcessTime > processingInterval) {
+                    isProcessingFrame = true;
+                    lastProcessTime = now;
+                    
+                    // Capture current frame for processing
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = video.videoWidth;
+                    tempCanvas.height = video.videoHeight;
+                    const tempCtx = tempCanvas.getContext('2d');
+                    tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+                    
+                    // Send frame for validation
+                    sendFrameForValidation(tempCanvas)
+                        .then(result => {
+                            isProcessingFrame = false;
+                            handleValidationResult(result);
+                        })
+                        .catch(error => {
+                            console.error('Frame validation error:', error);
+                            isProcessingFrame = false;
+                        });
+                }
+                
+                // Continue the animation loop
+                animationFrameId = requestAnimationFrame(processFrame);
+            }
+            
+            // Start the processing loop
+            animationFrameId = requestAnimationFrame(processFrame);
+        }
+        
+        // Send frame to server for validation
+        async function sendFrameForValidation(canvas) {
+            const blob = await new Promise(resolve => {
+                canvas.toBlob(resolve, 'image/jpeg', 0.8);
+            });
+            
+            const formData = new FormData();
+            formData.append('image', blob, 'frame.jpg');
+            formData.append('document_type', document.getElementById('document_type').value);
+            formData.append('side', document.getElementById('side').value);
+            formData.append('session_id', sessionId);
+            
+            const response = await fetch('/process_frame', {
+                method: 'POST',
+                body: formData
+            });
+            
+            return await response.json();
+        }
+        
+        // Handle validation result and update UI
+        function handleValidationResult(result) {
+            const ctx = overlayCanvas.getContext('2d');
+            ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            
+            if (result.cardDetected && result.corners) {
+                // Draw ID card outline
+                const color = result.validation && result.validation.is_valid ? '#4CAF50' : '#FF9800';
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                
+                const corners = result.corners;
+                ctx.moveTo(corners[0].x, corners[0].y);
+                for (let i = 1; i < corners.length; i++) {
+                    ctx.lineTo(corners[i].x, corners[i].y);
+                }
+                ctx.closePath();
+                ctx.stroke();
+                
+                // Update quality indicators
+                if (result.validation) {
+                    updateQualityIndicators(result.validation);
+                    
+                    // Check if all quality requirements are met
+                    const allQualityGood = result.validation.is_valid;
+                    
+                    if (allQualityGood) {
+                        consecutiveGoodFrames++;
+                        if (consecutiveGoodFrames >= requiredGoodFrames) {
+                            enableCapture();
+                            statusMessage.textContent = "Perfect! Image quality is good. Click Capture to proceed.";
+                        } else {
+                            statusMessage.textContent = `Almost ready... Hold steady (${consecutiveGoodFrames}/${requiredGoodFrames})`;
+                        }
+                    } else {
+                        consecutiveGoodFrames = 0;
+                        disableCapture();
+                        statusMessage.textContent = getQualityFeedbackMessage(result.validation);
+                    }
+                }
+            } else {
+                // No card detected
+                consecutiveGoodFrames = 0;
+                disableCapture();
+                resetQualityIndicators();
+                
+                const side = document.getElementById('side').value;
+                statusMessage.textContent = `Position the ${side} side of your ID card within the frame`;
+            }
+        }
+        
+        // Update quality indicator UI elements
+        function updateQualityIndicators(validation) {
+            // Blur/Sharpness indicator
+            const blurIndicator = document.getElementById('blur-indicator');
+            const isSharp = validation.scores && validation.scores.blur_score > 50;
+            updateQualityItem(blurIndicator, isSharp, '🔍', isSharp ? 'Sharp & Clear' : 'Too Blurry');
+            
+            // Corners indicator  
+            const cornersIndicator = document.getElementById('corners-indicator');
+            const cornersDetected = validation.corners_detected;
+            updateQualityItem(cornersIndicator, cornersDetected, '⬜', cornersDetected ? 'All Corners Visible' : 'Position ID Fully in Frame');
+            
+            // Lighting indicator
+            const lightingIndicator = document.getElementById('lighting-indicator');
+            const goodLighting = validation.scores && validation.scores.brightness >= 50 && validation.scores.brightness <= 200;
+            updateQualityItem(lightingIndicator, goodLighting, '💡', goodLighting ? 'Good Lighting' : 'Adjust Lighting');
+        }
+        
+        function updateQualityItem(element, isGood, icon, text) {
+            element.className = `quality-item ${isGood ? 'success' : 'error'}`;
+            element.innerHTML = `<span class="quality-icon">${icon}</span><span class="quality-text">${text}</span>`;
+        }
+        
+        function resetQualityIndicators() {
+            updateQualityItem(document.getElementById('blur-indicator'), false, '🔍', 'Checking sharpness...');
+            updateQualityItem(document.getElementById('corners-indicator'), false, '⬜', 'Detecting ID corners...');
+            updateQualityItem(document.getElementById('lighting-indicator'), false, '💡', 'Checking lighting...');
+        }
+        
+        function getQualityFeedbackMessage(validation) {
+            if (!validation.corners_detected) {
+                return "Please position the entire ID card within the frame";
+            }
+            if (validation.scores && validation.scores.blur_score <= 50) {
+                return "Hold the camera steady and ensure the image is in focus";
+            }
+            if (validation.scores && (validation.scores.brightness < 50 || validation.scores.brightness > 200)) {
+                return validation.scores.brightness < 50 ? "Move to better lighting" : "Reduce bright lighting/glare";
+            }
+            return "Adjust positioning for better image quality";
+        }
+        
+        function enableCapture() {
+            captureBtn.disabled = false;
+            captureBtn.style.backgroundColor = '#28a745';
+            captureBtn.style.cursor = 'pointer';
+        }
+        
+        function disableCapture() {
+            captureBtn.disabled = true;
+            captureBtn.style.backgroundColor = '#6c757d';
+            captureBtn.style.cursor = 'not-allowed';
+        }
+    </script>
+</body>
+</html> 

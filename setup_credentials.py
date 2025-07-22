@@ -1,64 +1,52 @@
-import os
-import sys
-import json
-import platform
+#!/usr/bin/env python3
+"""
+AWS Credentials Setup Script
+Sets up AWS credentials for the KYC application to use AWS Rekognition
+"""
 
-def setup_credentials():
-    print("Google Cloud Vision API Credentials Setup")
-    print("=========================================")
-    print("This script will help you set up your Google Cloud Vision credentials.")
-    print("You'll need to have a Google Cloud service account key file (JSON) ready.")
-    print()
+import os
+import json
+
+def setup_aws_credentials():
+    """Set up AWS credentials for the application."""
     
-    credentials_path = input("Enter the full path to your service account key file: ")
+    # AWS credentials
+    aws_access_key_id = "AKIAWR2VGD2QWZOJIGPD"
+    aws_secret_access_key = "gYwuSWrvhx8jdqmRO1UfA/XwzpebH0SlKYKRlEZV"
+    aws_region = "us-east-1"  # Default region for Rekognition
     
-    # Check if file exists
-    if not os.path.exists(credentials_path):
-        print(f"Error: File not found at {credentials_path}")
-        return False
+    # Set environment variables
+    os.environ['AWS_ACCESS_KEY_ID'] = aws_access_key_id
+    os.environ['AWS_SECRET_ACCESS_KEY'] = aws_secret_access_key
+    os.environ['AWS_DEFAULT_REGION'] = aws_region
     
-    # Validate JSON format
-    try:
-        with open(credentials_path, 'r') as f:
-            json.load(f)
-    except json.JSONDecodeError:
-        print("Error: The file is not valid JSON")
-        return False
+    # Create credentials file for boto3
+    aws_dir = os.path.expanduser('~/.aws')
+    os.makedirs(aws_dir, exist_ok=True)
     
-    # Set the environment variable
-    if platform.system() == "Windows":
-        # For Windows, we'll create a batch file to set the environment variable
-        with open("set_credentials.bat", "w") as f:
-            f.write(f"@echo off\n")
-            f.write(f'set GOOGLE_APPLICATION_CREDENTIALS={credentials_path}\n')
-            f.write(f'echo Google Cloud credentials set to: %GOOGLE_APPLICATION_CREDENTIALS%\n')
-            f.write(f'python id_processor.py\n')
-        
-        print("\nCreated set_credentials.bat file.")
-        print("Run this batch file before using the ID Processor:")
-        print("    set_credentials.bat")
-    else:
-        # For Linux/Mac, we'll add the export command to a shell script
-        with open("set_credentials.sh", "w") as f:
-            f.write("#!/bin/bash\n")
-            f.write(f'export GOOGLE_APPLICATION_CREDENTIALS="{credentials_path}"\n')
-            f.write('echo "Google Cloud credentials set to: $GOOGLE_APPLICATION_CREDENTIALS"\n')
-            f.write('python id_processor.py\n')
-        
-        # Make the script executable
-        os.chmod("set_credentials.sh", 0o755)
-        
-        print("\nCreated set_credentials.sh file.")
-        print("Run this shell script before using the ID Processor:")
-        print("    ./set_credentials.sh")
+    # Write credentials file
+    credentials_content = f"""[default]
+aws_access_key_id = {aws_access_key_id}
+aws_secret_access_key = {aws_secret_access_key}
+"""
     
-    print("\nYou can now run the ID Processor with:")
-    if platform.system() == "Windows":
-        print("    set_credentials.bat")
-    else:
-        print("    ./set_credentials.sh")
+    with open(os.path.join(aws_dir, 'credentials'), 'w') as f:
+        f.write(credentials_content)
+    
+    # Write config file
+    config_content = f"""[default]
+region = {aws_region}
+output = json
+"""
+    
+    with open(os.path.join(aws_dir, 'config'), 'w') as f:
+        f.write(config_content)
+    
+    print("AWS credentials have been set up successfully!")
+    print(f"Region: {aws_region}")
+    print(f"Access Key ID: {aws_access_key_id[:10]}...")
     
     return True
 
 if __name__ == "__main__":
-    setup_credentials() 
+    setup_aws_credentials() 

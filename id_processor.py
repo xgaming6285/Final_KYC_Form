@@ -3,8 +3,9 @@ import numpy as np
 import json
 import os
 import time
-from google.cloud import vision
-from google.cloud.vision_v1 import types
+# Google Cloud Vision imports disabled - no longer extracting text
+# from google.cloud import vision
+# from google.cloud.vision_v1 import types
 import io
 import re
 
@@ -14,8 +15,11 @@ class IDProcessor:
         with open(formats_file, 'r', encoding='utf-8') as f:
             self.formats = json.load(f)
         
-        # Initialize Google Cloud Vision client
-        self.vision_client = vision.ImageAnnotatorClient()
+        # Google Cloud Vision client disabled - no text extraction
+        # self.vision_client = vision.ImageAnnotatorClient()
+        self.vision_client = None
+        self.vision_available = False
+        print("Google Cloud Vision disabled - only image capture functionality available")
         
         # Initialize camera
         self.cap = None
@@ -65,97 +69,13 @@ class IDProcessor:
         return None
     
     def extract_text_from_image(self, image):
-        """Extract text from an image using Google Cloud Vision API."""
-        # Apply multiple image preprocessing methods to enhance text visibility
-        preprocessed_images = []
+        """Image capture only - Google Cloud Vision text extraction disabled."""
+        print("Google Cloud Vision text extraction is disabled")
+        print("Image has been captured successfully but no text extraction will be performed")
         
-        # Original image
-        preprocessed_images.append(("original", image))
-        
-        # Method 1: Grayscale with adaptive thresholding
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        thresholded = cv2.adaptiveThreshold(
-            gray,
-            255,
-            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-            cv2.THRESH_BINARY,
-            11,  # Block size
-            2    # Constant subtracted from mean
-        )
-        preprocessed_images.append(("adaptive_threshold", thresholded))
-        
-        # Method 2: Morphological operations to remove noise
-        kernel = np.ones((1, 1), np.uint8)
-        morph = cv2.morphologyEx(thresholded, cv2.MORPH_CLOSE, kernel)
-        preprocessed_images.append(("morph_close", morph))
-        
-        # Method 3: Contrast enhancement
-        lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
-        l, a, b = cv2.split(lab)
-        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
-        cl = clahe.apply(l)
-        limg = cv2.merge((cl, a, b))
-        enhanced = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
-        preprocessed_images.append(("contrast_enhanced", enhanced))
-        
-        # Method 4: Sharpening
-        kernel_sharpen = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]])
-        sharpened = cv2.filter2D(image, -1, kernel_sharpen)
-        preprocessed_images.append(("sharpened", sharpened))
-        
-        # Method 5: Edge enhancement
-        edge_enhanced = cv2.addWeighted(image, 1.5, cv2.GaussianBlur(image, (5, 5), 0), -0.5, 0)
-        preprocessed_images.append(("edge_enhanced", edge_enhanced))
-        
-        # Try extracting text from all preprocessing methods
-        results = []
-        
-        for method_name, img in preprocessed_images:
-            try:
-                # Convert numpy array to bytes
-                success, encoded_image = cv2.imencode('.jpg', img)
-                if not success:
-                    continue
-                
-                content = encoded_image.tobytes()
-                
-                # Create image object
-                vision_image = vision.Image(content=content)
-                
-                # Try both text_detection and document_text_detection
-                # First attempt regular text detection
-                response = self.vision_client.text_detection(image=vision_image)
-                texts = response.text_annotations
-                
-                if texts:
-                    print(f"Successfully extracted text using {method_name} method")
-                    results.append(texts[0].description)
-                else:
-                    # If no text found, try document text detection
-                    image_context = vision.ImageContext(language_hints=["bg", "en"])
-                    response = self.vision_client.document_text_detection(
-                        image=vision_image,
-                        image_context=image_context
-                    )
-                    
-                    if response.full_text_annotation:
-                        print(f"Successfully extracted document text using {method_name} method")
-                        results.append(response.full_text_annotation.text)
-                    elif response.text_annotations:
-                        print(f"Successfully extracted document text annotations using {method_name} method")
-                        results.append(response.text_annotations[0].description)
-            except Exception as e:
-                print(f"Error extracting text from {method_name} image: {e}")
-        
-        # Return the result with the most text
-        if results:
-            best_result = max(results, key=len)
-            print(f"Selected best text extraction result with {len(best_result)} characters")
-            return best_result
-        
-        # If all methods fail, return None
-        print("All text extraction methods failed")
-        return None
+        # Image is received and can be processed/saved, but no text extraction
+        # Return a placeholder message indicating the image was captured
+        return "Google Cloud Vision text extraction disabled - image captured successfully"
     
     def process_id_side(self, document_type, side):
         """Process one side of the ID card."""
@@ -524,26 +444,20 @@ class IDProcessor:
         return rect
     
     def verify_face(self, id_image):
-        """Verify if the person in front of the camera is the same as in the ID."""
-        print("Please look at the camera for face verification")
+        """Face verification disabled - Google Cloud Vision not available."""
+        print("Google Cloud Vision face verification is disabled")
+        print("Camera access is still available for manual face capture")
         
-        # Load face detection model
+        # Face verification is disabled, but we can still capture live face images
+        print("Press 'c' to capture face image, 'q' to skip face verification")
+        
+        # Load face detection model for basic face detection
         face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
         
-        # Use Vision API to detect face in ID image
-        id_face_response = self.vision_client.face_detection(
-            image=vision.Image(content=cv2.imencode('.jpg', id_image)[1].tobytes())
-        )
-        
-        if not id_face_response.face_annotations:
-            print("No face found in ID card")
-            return False
-        
-        # Start camera for live face capture
+        # Start camera for live face capture (manual verification)
         self.start_camera()
         
         try:
-            stable_frames = 0
             result = False
             
             while True:
@@ -551,46 +465,17 @@ class IDProcessor:
                 if not ret:
                     break
                 
-                # Detect faces in the live frame
+                # Detect faces in the live frame using OpenCV (no Vision API)
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                 faces = face_cascade.detectMultiScale(gray, 1.3, 5)
                 
                 if len(faces) == 1:
                     (x, y, w, h) = faces[0]
                     cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
-                    
-                    # Extract face region
-                    face_img = frame[y:y+h, x:x+w]
-                    
-                    # Use Vision API for face verification
-                    live_face_response = self.vision_client.face_detection(
-                        image=vision.Image(content=cv2.imencode('.jpg', face_img)[1].tobytes())
-                    )
-                    
-                    if live_face_response.face_annotations:
-                        # Here you would normally use a specialized face recognition algorithm
-                        # For this example, we'll just assume Google Cloud Vision can help
-                        # In a real application, you might want to use a dedicated face recognition service
-                        
-                        # This is a simplified approach - in reality you would use proper face embeddings comparison
-                        match = self.compare_faces(id_face_response.face_annotations[0], 
-                                                  live_face_response.face_annotations[0])
-                        
-                        if match:
-                            stable_frames += 1
-                            cv2.putText(frame, f"Face match detected ({stable_frames}/5)", 
-                                      (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                            
-                            if stable_frames >= 5:  # Require 5 consistent matches
-                                result = True
-                                break
-                        else:
-                            stable_frames = 0
-                            cv2.putText(frame, "Face does not match", (10, 30), 
-                                      cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-                    else:
-                        cv2.putText(frame, "Face not detected clearly", (10, 30), 
-                                  cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+                    cv2.putText(frame, "Face detected - Press 'c' to capture", (10, 30), 
+                              cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                    cv2.putText(frame, "Google Cloud Vision verification disabled", (10, 60), 
+                              cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 2)
                 elif len(faces) > 1:
                     cv2.putText(frame, "Multiple faces detected", (10, 30), 
                               cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
@@ -598,8 +483,17 @@ class IDProcessor:
                     cv2.putText(frame, "No face detected", (10, 30), 
                               cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
                 
-                cv2.imshow('Face Verification', frame)
-                if cv2.waitKey(1) & 0xFF == ord('q'):
+                cv2.imshow('Face Capture (Verification Disabled)', frame)
+                key = cv2.waitKey(1) & 0xFF
+                
+                if key == ord('q'):
+                    print("Face verification skipped")
+                    break
+                elif key == ord('c') and len(faces) == 1:
+                    print("Face image captured (verification disabled)")
+                    # Save the captured face image
+                    cv2.imwrite("captured_face.jpg", frame)
+                    result = True  # Assume verification passed for now
                     break
                 
         finally:

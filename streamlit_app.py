@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image
 import io
 import base64
-import face_recognition
+from aws_face_recognition import face_locations, face_encodings, face_distance, compare_faces_aws
 import sys
 import json
 import tempfile
@@ -195,16 +195,18 @@ def main():
                 id_image = cv2.imread(st.session_state.front_image_path)
                 id_image_rgb = cv2.cvtColor(id_image, cv2.COLOR_BGR2RGB)
                 
-                # Try to detect face in ID card
-                id_face_locations = face_recognition.face_locations(id_image_rgb)
-                
-                if id_face_locations:
-                    # Extract and display just the face from the ID
-                    top, right, bottom, left = id_face_locations[0]
-                    id_face = id_image_rgb[top:bottom, left:right]
-                    st.image(id_face, caption="ID Card Photo", width=200)
-                else:
-                    # If face detection fails, show the whole ID card
+                # Try to extract face from ID card using AWS Rekognition
+                try:
+                    from aws_face_recognition import aws_face_recognition
+                    id_face_region = aws_face_recognition.extract_face_region(id_image_rgb)
+                    if id_face_region is not None:
+                        id_face = cv2.cvtColor(id_face_region, cv2.COLOR_BGR2RGB)
+                        st.image(id_face, caption="ID Card Photo", width=200)
+                    else:
+                        # If face detection fails, show the whole ID card
+                        st.image(id_image_rgb, caption="ID Card Photo", width=300)
+                except Exception as e:
+                    st.warning(f"Could not extract face from ID: {str(e)}")
                     st.image(id_image_rgb, caption="ID Card Photo", width=300)
                 
                 # Option for webcam capture
@@ -221,41 +223,59 @@ def main():
                     face_filepath = os.path.join(UPLOAD_FOLDER, f"{st.session_state.session_id}_face.jpg")
                     cv2.imwrite(face_filepath, cv2.cvtColor(face_np, cv2.COLOR_RGB2BGR))
                     
-                    # Convert to format usable by face_recognition
-                    face_image_rgb = cv2.cvtColor(face_np, cv2.COLOR_RGB2BGR)
-                    
-                    # Detect face in captured image
-                    face_locations = face_recognition.face_locations(face_image_rgb)
-                    
-                    if not face_locations:
-                        st.error("No face detected in the captured image. Please ensure your face is clearly visible.")
-                    else:
-                        # Compare faces if both are available
-                        try:
-                            id_face_encodings = face_recognition.face_encodings(id_image_rgb, id_face_locations)
-                            face_encodings = face_recognition.face_encodings(face_image_rgb, face_locations)
+                    # Use AWS Rekognition to compare faces
+                    try:
+                        # Convert captured face to PIL Image for AWS Rekognition
+                        face_image_pil = Image.fromarray(face_np)
+                        
+                        # Use AWS Rekognition to compare faces
+                        comparison_result = compare_faces_aws(
+                            source_image=id_image_rgb,  # ID card image
+                            target_image=face_image_pil,  # Captured face
+                            similarity_threshold=85  # Higher threshold for better security
+                        )
+                        
+                        st.subheader("Verification Result")
+                        
+                        if comparison_result['success']:
+                            similarity = comparison_result['similarity']
+                            confidence = comparison_result['confidence']
+                            is_match = comparison_result['match']
                             
-                            if len(id_face_encodings) > 0 and len(face_encodings) > 0:
-                                # Calculate face distance
-                                face_distance = face_recognition.face_distance([id_face_encodings[0]], face_encodings[0])[0]
-                                match_threshold = 0.45  # More strict threshold (changed from 0.65)
-                                
-                                st.subheader("Verification Result")
-                                if face_distance < match_threshold:
-                                    st.success(f"Face verification successful! (Match score: {1-face_distance:.2f})")
-                                else:
-                                    st.error(f"Face verification failed. The captured face does not match the ID card photo. (Match score: {1-face_distance:.2f})")
-                                
-                                # Display both faces side by side
-                                col1, col2 = st.columns(2)
-                                with col1:
-                                    st.image(id_image_rgb, caption="ID Card", width=300)
-                                with col2:
-                                    st.image(face_np, caption="Captured Face", width=300)
+                            if is_match:
+                                st.success(f"Face verification successful! Similarity: {similarity:.1f}%, Confidence: {confidence:.1f}%")
                             else:
-                                st.error("Face verification failed. Could not properly analyze facial features.")
-                        except Exception as e:
-                            st.error(f"Error in face verification: {str(e)}")
+                                st.error(f"Face verification failed. Similarity: {similarity:.1f}%, Confidence: {confidence:.1f}%")
+                            
+                            # Display both images side by side
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.image(id_image_rgb, caption="ID Card", width=300)
+                            with col2:
+                                st.image(face_np, caption="Captured Face", width=300)
+                                
+                        else:
+                            error_msg = comparison_result.get('message', 'No matching faces found')
+                            if 'error' in comparison_result:
+                                error_msg = f"AWS Rekognition error: {comparison_result['error']}"
+                            st.error(f"Face verification failed. {error_msg}")
+                            
+                            # Still display images for manual verification
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.image(id_image_rgb, caption="ID Card", width=300)
+                            with col2:
+                                st.image(face_np, caption="Captured Face", width=300)
+                                
+                    except Exception as e:
+                        st.error(f"Error during AWS Rekognition face verification: {str(e)}")
+                        
+                        # Still display images for manual verification
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.image(id_image_rgb, caption="ID Card", width=300)
+                        with col2:
+                            st.image(face_np, caption="Captured Face", width=300)
             else:
                 st.error("ID card image not found. Please complete the ID card scanning process first.")
     

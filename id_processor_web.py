@@ -3,8 +3,9 @@ import numpy as np
 import json
 import os
 import time
-from google.cloud import vision
-from google.cloud.vision_v1 import types
+# Google Cloud Vision imports disabled - no longer extracting text
+# from google.cloud import vision
+# from google.cloud.vision_v1 import types
 import io
 import re
 
@@ -14,16 +15,17 @@ class IDProcessorWeb:
         with open(formats_file, 'r', encoding='utf-8') as f:
             self.formats = json.load(f)
         
-        # Initialize Google Cloud Vision client with error handling
-        try:
-            self.vision_client = vision.ImageAnnotatorClient()
-            self.vision_available = True
-            print("Successfully initialized Google Cloud Vision client")
-        except Exception as e:
-            print(f"Warning: Could not initialize Google Cloud Vision client: {e}")
-            print("OCR functionality will be limited")
-            self.vision_client = None
-            self.vision_available = False
+        # Google Cloud Vision client disabled - no text extraction
+        # try:
+        #     self.vision_client = vision.ImageAnnotatorClient()
+        #     self.vision_available = True
+        #     print("Successfully initialized Google Cloud Vision client")
+        # except Exception as e:
+        #     print(f"Warning: Could not initialize Google Cloud Vision client: {e}")
+        #     print("OCR functionality will be limited")
+        self.vision_client = None
+        self.vision_available = False
+        print("Google Cloud Vision disabled - only image capture functionality available")
         
         # Initialize camera
         self.cap = None
@@ -124,91 +126,13 @@ class IDProcessorWeb:
         return rect
     
     def extract_text_from_image(self, image): 
-        if not self.vision_available:
-            print("Google Cloud Vision not available. Text extraction may not work.")
-            return "Google Cloud Vision credentials not available. Cannot extract text."
+        """Image capture only - Google Cloud Vision text extraction disabled."""
+        print("Google Cloud Vision text extraction is disabled")
+        print("Image has been captured successfully but no text extraction will be performed")
         
-        # Original implementation from IDProcessor
-        try:
-            # Apply image preprocessing to enhance text visibility
-            # Convert to grayscale
-            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-            
-            # Apply adaptive thresholding to improve text contrast
-            thresholded = cv2.adaptiveThreshold(
-                gray,
-                255,
-                cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                cv2.THRESH_BINARY,
-                11,  # Block size
-                2    # Constant subtracted from mean
-            )
-            
-            # Apply morphological operations to remove noise
-            kernel = np.ones((1, 1), np.uint8)
-            morph = cv2.morphologyEx(thresholded, cv2.MORPH_CLOSE, kernel)
-            
-            # Try extracting text from both original and enhanced images
-            results = []
-            images_to_try = [image, thresholded, morph]
-            
-            for idx, img in enumerate(images_to_try):
-                try:
-                    # Convert numpy array to bytes
-                    success, encoded_image = cv2.imencode('.jpg', img)
-                    if not success:
-                        continue
-                    
-                    content = encoded_image.tobytes()
-                    
-                    # Create image object
-                    vision_image = vision.Image(content=content)
-                    
-                    # Perform text detection
-                    response = self.vision_client.text_detection(image=vision_image)
-                    texts = response.text_annotations
-                    
-                    if texts:
-                        print(f"Successfully extracted text using image preprocessing method {idx}")
-                        results.append(texts[0].description)
-                except Exception as e:
-                    print(f"Error extracting text from image {idx}: {e}")
-            
-            # Return the result with the most text
-            if results:
-                return max(results, key=len)
-            
-            # If all enhanced methods fail, try the original method
-            try:
-                # Convert numpy array to bytes
-                success, encoded_image = cv2.imencode('.jpg', image)
-                if not success:
-                    return None
-                
-                content = encoded_image.tobytes()
-                
-                # Create image object
-                vision_image = vision.Image(content=content)
-                
-                # Perform text detection with document text hint
-                image_context = vision.ImageContext(language_hints=["bg", "en"])
-                response = self.vision_client.document_text_detection(
-                    image=vision_image,
-                    image_context=image_context
-                )
-                
-                if response.full_text_annotation:
-                    return response.full_text_annotation.text
-                
-                if response.text_annotations:
-                    return response.text_annotations[0].description
-            except Exception as e:
-                print(f"Error in document text detection: {e}")
-            
-            return None
-        except Exception as e:
-            print(f"Error in extract_text_from_image: {e}")
-            return f"Error: {str(e)}"
+        # Image is received and can be processed/saved, but no text extraction
+        # Return a placeholder message indicating the image was captured
+        return "Google Cloud Vision text extraction disabled - image captured successfully"
     
     def map_text_to_fields(self, text, fields_to_extract):
         """Map extracted text to the required fields."""

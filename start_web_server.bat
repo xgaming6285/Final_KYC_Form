@@ -1,9 +1,9 @@
 @echo off
-echo Starting ID Card Scanner Web Server with explicit credentials...
+echo Starting KYC Web Server with AWS Rekognition...
 echo.
 
-set GOOGLE_APPLICATION_CREDENTIALS=%~dp0n8n-test-456921-2c4224bba16d.json
-echo Set Google Cloud credentials to: %GOOGLE_APPLICATION_CREDENTIALS%
+echo Setting up AWS credentials...
+python setup_credentials.py
 echo.
 
 python show_ip.py

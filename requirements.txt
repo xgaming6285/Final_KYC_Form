@@ -4,10 +4,6 @@ opencv-python-headless<4.8.0
 Pillow>=8.0.0
 google-cloud-vision>=3.0.0
 google-auth>=2.0.0
-cmake>=3.25.0
 flask>=2.0.0
-face-recognition-models>=0.3.0
-https://github.com/z-mahmud22/Dlib_Windows_Python/raw/main/dlib-19.22.99-cp310-cp310-win_amd64.whl; platform_system == "Windows" and python_version == "3.10"
-https://github.com/z-mahmud22/Dlib_Windows_Python/raw/main/dlib-19.22.99-cp39-cp39-win_amd64.whl; platform_system == "Windows" and python_version == "3.9"
-dlib==19.22.1; platform_system != "Windows"
-face-recognition==1.3.0 
+boto3>=1.26.0
+botocore>=1.29.0 
