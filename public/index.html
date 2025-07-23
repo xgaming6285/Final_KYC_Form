@@ -400,6 +400,52 @@
 
 
     <script src="js/translation-manager.js"></script>
+    <script src="js/video-recorder.js"></script>
     <script src="script.js"></script>
+    
+    <script>
+        // Initialize video recording when page loads
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🚀 Initializing KYC session with video recording...');
+            
+            // Generate session ID if not exists
+            let sessionId = localStorage.getItem('kyc_session_id');
+            if (!sessionId) {
+                sessionId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                    return v.toString(16);
+                });
+                localStorage.setItem('kyc_session_id', sessionId);
+            }
+            
+            try {
+                // Initialize video recording session
+                const initialized = await window.videoRecordingManager.initializeSession(sessionId);
+                
+                if (initialized) {
+                    // Start recording after a small delay to allow user to see the page
+                    setTimeout(async () => {
+                        try {
+                            await window.videoRecordingManager.startRecording();
+                            console.log('✅ Session video recording started successfully');
+                        } catch (error) {
+                            console.warn('⚠️ Could not start video recording:', error.message);
+                            // Continue without video recording - don't block the user
+                        }
+                    }, 2000); // 2 second delay
+                }
+            } catch (error) {
+                console.warn('⚠️ Video recording initialization failed:', error.message);
+                // Continue without video recording - don't block the user
+            }
+        });
+        
+        // Stop recording when user leaves the page
+        window.addEventListener('beforeunload', function() {
+            if (window.videoRecordingManager && window.videoRecordingManager.isRecording) {
+                window.videoRecordingManager.stopRecording();
+            }
+        });
+    </script>
 </body>
 </html> 

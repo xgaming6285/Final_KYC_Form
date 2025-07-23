@@ -7,6 +7,7 @@ from PIL import Image
 import io
 import base64
 from aws_face_recognition import face_locations, face_encodings, face_distance, compare_faces_aws
+from s3_storage import upload_image_to_s3, get_s3_image_url, s3_storage
 import sys
 import json
 import tempfile
@@ -87,10 +88,10 @@ def main():
         st.session_state.front_data = {}
     if "back_data" not in st.session_state:
         st.session_state.back_data = {}
-    if "front_image_path" not in st.session_state:
-        st.session_state.front_image_path = None
-    if "back_image_path" not in st.session_state:
-        st.session_state.back_image_path = None
+    if "front_image_s3_key" not in st.session_state:
+        st.session_state.front_image_s3_key = None
+    if "back_image_s3_key" not in st.session_state:
+        st.session_state.back_image_s3_key = None
     
     # ID Scanning Page
     if page == "ID Scanning":
@@ -115,8 +116,8 @@ def main():
                 st.session_state.back_processed = False
                 st.session_state.front_data = {}
                 st.session_state.back_data = {}
-                st.session_state.front_image_path = None
-                st.session_state.back_image_path = None
+                st.session_state.front_image_s3_key = None
+                st.session_state.back_image_s3_key = None
                 st.experimental_rerun()
         
         # Upload image option
@@ -127,9 +128,12 @@ def main():
             file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
             image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
             
-            # Save image for processing
-            temp_filepath = os.path.join(UPLOAD_FOLDER, f"{st.session_state.session_id}_{side}.jpg")
-            cv2.imwrite(temp_filepath, image)
+            # Upload image to S3 for processing
+            s3_result = upload_image_to_s3(image, st.session_state.session_id, side)
+            
+            if not s3_result['success']:
+                st.error(f"Failed to upload image to S3: {s3_result['error']}")
+                return
             
             # Process the image
             fields_to_extract = id_processor.formats[document_type][side]
@@ -153,11 +157,11 @@ def main():
                     if side == "front":
                         st.session_state.front_processed = True
                         st.session_state.front_data = filled_data
-                        st.session_state.front_image_path = temp_filepath
+                        st.session_state.front_image_s3_key = s3_result['s3_key']  # Store S3 key instead
                     else:
                         st.session_state.back_processed = True
                         st.session_state.back_data = filled_data
-                        st.session_state.back_image_path = temp_filepath
+                        st.session_state.back_image_s3_key = s3_result['s3_key']  # Store S3 key instead
                     
                     # Next steps
                     if side == "front" and not st.session_state.back_processed:
@@ -190,24 +194,18 @@ def main():
         else:
             st.subheader("Compare Live Face with ID Photo")
             
-            # Display the ID photo for reference
-            if st.session_state.front_image_path and os.path.exists(st.session_state.front_image_path):
-                id_image = cv2.imread(st.session_state.front_image_path)
-                id_image_rgb = cv2.cvtColor(id_image, cv2.COLOR_BGR2RGB)
-                
-                # Try to extract face from ID card using AWS Rekognition
-                try:
-                    from aws_face_recognition import aws_face_recognition
-                    id_face_region = aws_face_recognition.extract_face_region(id_image_rgb)
-                    if id_face_region is not None:
-                        id_face = cv2.cvtColor(id_face_region, cv2.COLOR_BGR2RGB)
-                        st.image(id_face, caption="ID Card Photo", width=200)
-                    else:
-                        # If face detection fails, show the whole ID card
-                        st.image(id_image_rgb, caption="ID Card Photo", width=300)
-                except Exception as e:
-                    st.warning(f"Could not extract face from ID: {str(e)}")
-                    st.image(id_image_rgb, caption="ID Card Photo", width=300)
+            # Get the ID image for face comparison (but don't display it)
+            if st.session_state.front_image_s3_key:
+                # Download the ID image from S3
+                id_image_bytes = s3_storage.download_image(st.session_state.front_image_s3_key)
+                if id_image_bytes:
+                    # Convert bytes to image
+                    id_image_array = np.frombuffer(id_image_bytes, np.uint8)
+                    id_image = cv2.imdecode(id_image_array, cv2.IMREAD_COLOR)
+                    id_image_rgb = cv2.cvtColor(id_image, cv2.COLOR_BGR2RGB)
+                else:
+                    st.error("Failed to download ID image from S3")
+                    return
                 
                 # Option for webcam capture
                 st.subheader("Capture Your Face")
@@ -219,9 +217,12 @@ def main():
                     face_image = Image.open(io.BytesIO(bytes_data))
                     face_np = np.array(face_image)
                     
-                    # Save the captured face
-                    face_filepath = os.path.join(UPLOAD_FOLDER, f"{st.session_state.session_id}_face.jpg")
-                    cv2.imwrite(face_filepath, cv2.cvtColor(face_np, cv2.COLOR_RGB2BGR))
+                    # Upload the captured face to S3
+                    face_s3_result = upload_image_to_s3(face_image, st.session_state.session_id, 'face')
+                    
+                    if not face_s3_result['success']:
+                        st.error(f"Failed to upload face image to S3: {face_s3_result['error']}")
+                        return
                     
                     # Use AWS Rekognition to compare faces
                     try:
@@ -243,29 +244,18 @@ def main():
                             is_match = comparison_result['match']
                             
                             if is_match:
-                                st.success(f"Face verification successful! Similarity: {similarity:.1f}%, Confidence: {confidence:.1f}%")
+                                st.success(f"✅ Face verification successful! Similarity: {similarity:.1f}%, Confidence: {confidence:.1f}%")
+                                st.balloons()
                             else:
-                                st.error(f"Face verification failed. Similarity: {similarity:.1f}%, Confidence: {confidence:.1f}%")
-                            
-                            # Display both images side by side
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                st.image(id_image_rgb, caption="ID Card", width=300)
-                            with col2:
-                                st.image(face_np, caption="Captured Face", width=300)
+                                st.error(f"❌ Face verification failed. Similarity: {similarity:.1f}%, Confidence: {confidence:.1f}%")
                                 
                         else:
                             error_msg = comparison_result.get('message', 'No matching faces found')
                             if 'error' in comparison_result:
                                 error_msg = f"AWS Rekognition error: {comparison_result['error']}"
-                            st.error(f"Face verification failed. {error_msg}")
+                            st.error(f"❌ Face verification failed. {error_msg}")
                             
-                            # Still display images for manual verification
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                st.image(id_image_rgb, caption="ID Card", width=300)
-                            with col2:
-                                st.image(face_np, caption="Captured Face", width=300)
+                        # Removed image display - showing only the result as requested
                                 
                     except Exception as e:
                         st.error(f"Error during AWS Rekognition face verification: {str(e)}")

@@ -123,6 +123,198 @@ class AWSFaceRecognition:
                 'error': str(e)
             }
     
+    def compare_faces_s3(self, source_s3_bucket, source_s3_key, target_image, similarity_threshold=80):
+        """
+        Compare two faces using AWS Rekognition with S3 source image.
+        This avoids the need to download the S3 image (no s3:GetObject permission needed).
+        
+        Args:
+            source_s3_bucket: S3 bucket name containing the source image
+            source_s3_key: S3 key (path) of the source image
+            target_image: Target image (bytes, numpy array, or PIL Image)
+            similarity_threshold: Minimum similarity threshold for a match
+            
+        Returns:
+            dict: Comparison result with similarity, confidence, and match status
+        """
+        if not self.rekognition:
+            raise Exception("AWS Rekognition client not initialized")
+        
+        try:
+            target_bytes = self._image_to_bytes(target_image)
+            
+            response = self.rekognition.compare_faces(
+                SourceImage={
+                    'S3Object': {
+                        'Bucket': source_s3_bucket,
+                        'Name': source_s3_key
+                    }
+                },
+                TargetImage={'Bytes': target_bytes},
+                SimilarityThreshold=similarity_threshold
+            )
+            
+            face_matches = response.get('FaceMatches', [])
+            
+            if face_matches:
+                # Get the highest similarity score
+                best_match = max(face_matches, key=lambda x: x['Similarity'])
+                similarity = best_match['Similarity']
+                confidence = best_match['Face']['Confidence']
+                
+                return {
+                    'success': True,
+                    'similarity': similarity,
+                    'confidence': confidence,
+                    'match': similarity >= similarity_threshold,
+                    'face_distance': (100 - similarity) / 100  # Convert to distance format for compatibility
+                }
+            else:
+                return {
+                    'success': False,
+                    'similarity': 0,
+                    'confidence': 0,
+                    'match': False,
+                    'face_distance': 1.0,  # Maximum distance (no match)
+                    'message': 'No matching faces found'
+                }
+                
+        except Exception as e:
+            print(f"Error comparing faces with S3 source: {str(e)}")
+            return {
+                'success': False,
+                'similarity': 0,
+                'confidence': 0,
+                'match': False,
+                'face_distance': 1.0,
+                'error': str(e)
+            }
+    
+    def compare_faces_s3_hybrid(self, source_s3_bucket, source_s3_key, target_image, similarity_threshold=80):
+        """
+        Hybrid AWS Rekognition face comparison that tries S3-based comparison first,
+        then falls back to download-based comparison if service permissions aren't configured.
+        
+        Args:
+            source_s3_bucket: S3 bucket name containing the source image
+            source_s3_key: S3 key (path) of the source image
+            target_image: Target image (bytes, numpy array, or PIL Image)
+            similarity_threshold: Minimum similarity threshold for a match
+            
+        Returns:
+            dict: Comparison result with similarity, confidence, and match status
+        """
+        print(f"Attempting S3-based face comparison: {source_s3_bucket}/{source_s3_key}")
+        
+        # First, try S3-based comparison (optimal if service permissions are configured)
+        s3_based_failed = False
+        s3_error_message = ""
+        
+        try:
+            result = self.compare_faces_s3(source_s3_bucket, source_s3_key, target_image, similarity_threshold)
+            
+            # Check if the result indicates success or a legitimate failure (not permission-related)
+            if result['success']:
+                print("✓ S3-based comparison successful")
+                return result
+            elif 'error' in result:
+                error_str = result['error']
+                # Check for S3/permission-related errors that should trigger fallback
+                permission_errors = [
+                    'InvalidS3ObjectException',
+                    'AccessDenied', 
+                    'NoSuchKey',
+                    'Forbidden',
+                    'does not have permission',
+                    'InvalidS3Object'
+                ]
+                
+                if any(perm_error in error_str for perm_error in permission_errors):
+                    print(f"S3-based comparison failed due to permissions/access: {error_str}")
+                    s3_based_failed = True
+                    s3_error_message = error_str
+                else:
+                    # Non-permission error, return the result as-is
+                    print(f"S3-based comparison failed with non-permission error: {error_str}")
+                    return result
+            else:
+                # No faces found or other legitimate failure
+                print("S3-based comparison returned no matching faces")
+                return result
+                
+        except Exception as e:
+            error_str = str(e)
+            print(f"S3-based comparison threw exception: {error_str}")
+            
+            # Check if this is a permission/access related exception
+            permission_errors = [
+                'InvalidS3ObjectException',
+                'AccessDenied', 
+                'NoSuchKey',
+                'Forbidden',
+                'does not have permission',
+                'InvalidS3Object',
+                'ClientError'
+            ]
+            
+            if any(perm_error in error_str for perm_error in permission_errors):
+                s3_based_failed = True
+                s3_error_message = error_str
+            else:
+                # Non-permission exception, return error
+                return {
+                    'success': False,
+                    'similarity': 0,
+                    'confidence': 0,
+                    'match': False,
+                    'face_distance': 1.0,
+                    'error': error_str
+                }
+        
+        # If we reach here, S3-based comparison failed due to permissions, fall back to download
+        if s3_based_failed:
+            print(f"S3-based comparison failed due to permissions ({s3_error_message}), falling back to download...")
+            
+            try:
+                # Download the source image using boto3 S3 client
+                import boto3
+                s3_client = boto3.client('s3')
+                
+                print(f"Downloading image from S3: {source_s3_bucket}/{source_s3_key}")
+                response = s3_client.get_object(Bucket=source_s3_bucket, Key=source_s3_key)
+                source_image_bytes = response['Body'].read()
+                
+                # Convert bytes to image format compatible with _image_to_bytes
+                import io
+                from PIL import Image
+                source_image_pil = Image.open(io.BytesIO(source_image_bytes))
+                
+                print("✓ Successfully downloaded image, performing byte-based comparison")
+                
+                # Now use regular comparison with downloaded image
+                return self.compare_faces(source_image_pil, target_image, similarity_threshold)
+                
+            except Exception as download_error:
+                print(f"Download fallback also failed: {str(download_error)}")
+                return {
+                    'success': False,
+                    'similarity': 0,
+                    'confidence': 0,
+                    'match': False,
+                    'face_distance': 1.0,
+                    'error': f"Both S3-based and download-based comparison failed. S3 error: {s3_error_message}, Download error: {str(download_error)}"
+                }
+        
+        # This should not be reached, but just in case
+        return {
+            'success': False,
+            'similarity': 0,
+            'confidence': 0,
+            'match': False,
+            'face_distance': 1.0,
+            'error': "Unexpected error in S3 hybrid comparison"
+        }
+    
     def extract_face_region(self, image, face_details=None):
         """
         Extract face region from image using AWS Rekognition face detection.
@@ -221,4 +413,20 @@ def compare_faces_aws(source_image, target_image, similarity_threshold=80):
     Direct AWS Rekognition face comparison function.
     Use this instead of the compatibility functions for better results.
     """
-    return aws_face_recognition.compare_faces(source_image, target_image, similarity_threshold) 
+    return aws_face_recognition.compare_faces(source_image, target_image, similarity_threshold)
+
+def compare_faces_aws_s3(source_s3_bucket, source_s3_key, target_image, similarity_threshold=80):
+    """
+    Direct AWS Rekognition face comparison function using S3 source image.
+    Falls back to download-based comparison if S3 service permissions aren't configured.
+    
+    Args:
+        source_s3_bucket: S3 bucket name containing the source image
+        source_s3_key: S3 key (path) of the source image  
+        target_image: Target image (bytes, numpy array, or PIL Image)
+        similarity_threshold: Minimum similarity threshold for a match
+        
+    Returns:
+        dict: Comparison result with similarity, confidence, and match status
+    """
+    return aws_face_recognition.compare_faces_s3_hybrid(source_s3_bucket, source_s3_key, target_image, similarity_threshold) 

@@ -11,7 +11,9 @@ def setup_aws_credentials():
     """Set up AWS credentials for the application."""
     
     # AWS credentials
-
+    aws_access_key_id = "AKIAWR2VGD2QWZOJIGPD"
+    aws_secret_access_key = "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"
+    aws_region = "us-east-1"  # Default region for Rekognition
     
     # Set environment variables
     os.environ['AWS_ACCESS_KEY_ID'] = aws_access_key_id

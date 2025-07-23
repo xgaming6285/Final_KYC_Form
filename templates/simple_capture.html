@@ -384,6 +384,12 @@
         
         // Capture image
         function captureImage() {
+            // Save video progress when capturing ID images
+            if (window.videoRecordingManager && window.videoRecordingManager.isRecording) {
+                console.log('💾 Saving video progress - capturing ID image');
+                window.videoRecordingManager.saveCurrentVideoProgress();
+            }
+            
             const context = canvas.getContext('2d');
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
@@ -429,6 +435,12 @@
         async function confirmImage() {
             if (!currentCapturedImage) return;
             
+            // Save video progress when confirming image upload
+            if (window.videoRecordingManager && window.videoRecordingManager.isRecording) {
+                console.log('💾 Saving video progress - confirming ID image upload');
+                await window.videoRecordingManager.saveCurrentVideoProgress();
+            }
+            
             confirmBtn.disabled = true;
             confirmBtn.textContent = '⏳ Saving...';
             
@@ -459,8 +471,18 @@
                             document.getElementById('side').value = 'back';
                             updateSideUI();
                         } else if (result.next_step === 'face') {
-                            // Move to face verification
-                            window.location.href = '/face_verification?session_id=' + sessionId;
+                            // Move to face verification while keeping video recording active
+                            statusMessage.textContent = "ID card processing complete! Moving to face verification...";
+                            statusMessage.style.color = '#4CAF50';
+                            
+                            // Mark that we're navigating to face verification (don't stop recording)
+                            localStorage.setItem('navigating_to_face_verification', 'true');
+                            
+                            // Small delay to show the message, then navigate
+                            setTimeout(() => {
+                                console.log('ℹ️ Navigating to face verification - preserving video recording session');
+                                window.location.href = `/face_verification?session_id=${sessionId}`;
+                            }, 1500);
                         }
                     }, 2000);
                 }
@@ -506,6 +528,134 @@
         localStorage.setItem('kyc_session_id', sessionId);
         updateSideUI();
         initCamera();
+    </script>
+    
+    <!-- Include video recording functionality -->
+    <script src="/static/js/video-recorder.js"></script>
+    <script>
+        // Add recording notification banner
+        function showRecordingNotification() {
+            const notification = document.createElement('div');
+            notification.id = 'recording-notification';
+            notification.innerHTML = `
+                <div style="
+                    background: linear-gradient(135deg, #dc3545, #c82333);
+                    color: white;
+                    padding: 12px 20px;
+                    text-align: center;
+                    font-weight: 500;
+                    box-shadow: 0 2px 10px rgba(220, 53, 69, 0.3);
+                    border-bottom: 3px solid rgba(255, 255, 255, 0.2);
+                ">
+                    <i class="fas fa-video" style="margin-right: 8px;"></i>
+                    <strong>Session Recording Active</strong> - Your session is being recorded for security purposes
+                    <div style="font-size: 12px; margin-top: 4px; opacity: 0.9;">
+                        This helps us verify your identity and protect against fraud
+                    </div>
+                </div>
+            `;
+            
+            // Insert at the top of the page
+            document.body.insertBefore(notification, document.body.firstChild);
+        }
+        
+        // Initialize video recording for simple capture page
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('📷 Simple Capture page loaded - initializing video recording...');
+            
+            // Get session ID (should already be set by this point)
+            let sessionId = localStorage.getItem('kyc_session_id') || generateUUID();
+            localStorage.setItem('kyc_session_id', sessionId);
+            
+            // Show recording notification immediately
+            showRecordingNotification();
+            
+            try {
+                // Initialize video recording session
+                const initialized = await window.videoRecordingManager.initializeSession(sessionId);
+                
+                if (initialized) {
+                    // Start recording after a delay to allow page to load
+                    setTimeout(async () => {
+                        try {
+                            await window.videoRecordingManager.startRecording();
+                            console.log('✅ Simple Capture page video recording started');
+                        } catch (error) {
+                            console.warn('⚠️ Could not start video recording on simple capture page:', error.message);
+                            // Update notification to show recording failed
+                            const notification = document.getElementById('recording-notification');
+                            if (notification) {
+                                notification.innerHTML = `
+                                    <div style="
+                                        background: linear-gradient(135deg, #ffc107, #e0a800);
+                                        color: #212529;
+                                        padding: 12px 20px;
+                                        text-align: center;
+                                        font-weight: 500;
+                                        box-shadow: 0 2px 10px rgba(255, 193, 7, 0.3);
+                                        border-bottom: 3px solid rgba(255, 255, 255, 0.2);
+                                    ">
+                                        <i class="fas fa-exclamation-triangle" style="margin-right: 8px;"></i>
+                                        <strong>Camera Access Limited</strong> - Video recording not available, but you can still complete verification
+                                    </div>
+                                `;
+                            }
+                        }
+                    }, 2000); // 2 second delay
+                }
+            } catch (error) {
+                console.warn('⚠️ Video recording initialization failed on simple capture page:', error.message);
+            }
+        });
+        
+        // Don't stop recording when navigating to face verification - let it continue
+        // Only stop if user is truly leaving the KYC process
+        window.addEventListener('beforeunload', function(event) {
+            // Check if we're navigating to face verification (don't stop recording)
+            const navigatingToFace = localStorage.getItem('navigating_to_face_verification');
+            if (navigatingToFace === 'true') {
+                localStorage.removeItem('navigating_to_face_verification'); // Clean up flag
+                console.log('ℹ️ Navigating to face verification - keeping video recording active');
+                return; // Don't stop recording
+            }
+            
+            // Check URL-based navigation
+            const destinationURL = event.target.activeElement?.href;
+            if (destinationURL && destinationURL.includes('face_verification')) {
+                console.log('ℹ️ Navigating to face verification - keeping video recording active');
+                return; // Don't stop recording
+            }
+            
+            // Stop recording for other navigations
+            if (window.videoRecordingManager && window.videoRecordingManager.isRecording) {
+                console.log('🛑 Stopping video recording - user leaving KYC process');
+                window.videoRecordingManager.stopRecording();
+            }
+        });
+        
+        // Handle programmatic navigation to face verification (keep recording active)
+        const originalLocationHref = window.location.href;
+        let navigatingToFaceVerification = false;
+        
+        // Override window.location.href setter to detect face verification navigation
+        Object.defineProperty(window.location, 'href', {
+            get: function() { return originalLocationHref; },
+            set: function(value) {
+                if (value.includes('face_verification')) {
+                    navigatingToFaceVerification = true;
+                    console.log('ℹ️ Programmatic navigation to face verification detected - keeping recording active');
+                }
+                originalLocationHref = value;
+            }
+        });
+        
+        // Generate UUID function (duplicate from other files for compatibility)
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
     </script>
 </body>
 </html>

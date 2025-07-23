@@ -12,8 +12,9 @@ import json
 # from google.cloud import vision
 # from google.oauth2 import service_account
 import datetime
-from aws_face_recognition import face_locations, face_encodings, face_distance, compare_faces_aws
+from aws_face_recognition import face_locations, face_encodings, face_distance, compare_faces_aws, compare_faces_aws_s3
 from image_quality_validator import ImageQualityValidator
+from s3_storage import upload_image_to_s3, get_s3_image_url, s3_storage, upload_video_to_s3
 
 # Google Cloud credentials setup disabled
 # credential_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'n8n-test-456921-2c4224bba16d.json')
@@ -29,9 +30,84 @@ print("Google Cloud Vision disabled - only image capture functionality available
 quality_validator = ImageQualityValidator()
 print("Initialized Image Quality Validator for ID validation")
 
-app = Flask(__name__)
+# Simple in-memory session storage to track uploaded S3 keys
+# This avoids the need for s3:ListBucket permission
+session_storage = {}
+
+# Add temporary local storage tracking
+local_temp_storage = {}
+
+# Video recording session storage
+video_sessions = {}
+
+def store_session_image(session_id, image_type, s3_key):
+    """Store S3 key for a session image."""
+    if session_id not in session_storage:
+        session_storage[session_id] = {}
+    session_storage[session_id][image_type] = s3_key
+    print(f"Stored {image_type} S3 key for session {session_id}: {s3_key}")
+
+def store_local_temp_image(session_id, image_type, local_path):
+    """Store local temporary image path for a session."""
+    if session_id not in local_temp_storage:
+        local_temp_storage[session_id] = {}
+    local_temp_storage[session_id][image_type] = local_path
+    print(f"Stored {image_type} local temp path for session {session_id}: {local_path}")
+
+def get_local_temp_image(session_id, image_type):
+    """Get local temporary image path for a session."""
+    if session_id in local_temp_storage and image_type in local_temp_storage[session_id]:
+        return local_temp_storage[session_id][image_type]
+    return None
+
+def cleanup_local_temp_files(session_id):
+    """Clean up temporary local files for a session."""
+    if session_id in local_temp_storage:
+        for image_type, local_path in local_temp_storage[session_id].items():
+            try:
+                if os.path.exists(local_path):
+                    os.remove(local_path)
+                    print(f"Cleaned up temporary file: {local_path}")
+            except Exception as e:
+                print(f"Error cleaning up temporary file {local_path}: {str(e)}")
+
+def get_session_image(session_id, image_type):
+    """Get S3 key for a session image."""
+    if session_id in session_storage and image_type in session_storage[session_id]:
+        return session_storage[session_id][image_type]
+    return None
+
+def get_all_session_images(session_id):
+    """Get all S3 keys for a session."""
+    if session_id in session_storage:
+        return session_storage[session_id]
+    return {}
+
+def cleanup_session(session_id):
+    """Remove session data from memory storage."""
+    if session_id in session_storage:
+        del session_storage[session_id]
+        print(f"Cleaned up session storage for session {session_id}")
+    
+    # Also cleanup local temporary files
+    cleanup_local_temp_files(session_id)
+
+def cleanup_old_sessions():
+    """Clean up old sessions to prevent memory buildup (could be called periodically)."""
+    # For now, just log the number of active sessions
+    print(f"Active sessions in memory: {len(session_storage)}")
+
+def store_session_video(session_id, camera_type, s3_key):
+    """Store S3 key for a session video."""
+    if session_id not in video_sessions:
+        video_sessions[session_id] = {}
+    video_sessions[session_id][camera_type] = s3_key
+    print(f"Stored {camera_type} video S3 key for session {session_id}: {s3_key}")
+
+app = Flask(__name__, static_folder='static', static_url_path='/static')
 # Use absolute path for uploads directory
-app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+upload_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+app.config['UPLOAD_FOLDER'] = upload_dir
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg'}
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB limit
 
@@ -104,26 +180,51 @@ def process_id():
     
     # Generate a session ID to link front and back images
     session_id = request.form.get('session_id', str(uuid.uuid4()))
-    filename = f"{session_id}_{side}.jpg"
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     
     # Process uploaded file
     if 'file' in request.files:
         file = request.files['file']
         if file and allowed_file(file.filename):
-            # Save file with consistent naming
-            file.save(filepath)
-            
-            # Process the image
-            image = cv2.imread(filepath)
+            # Read image data directly without saving locally
+            file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
+            image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
             
             if image is None:
                 return jsonify({'error': 'Could not read image file'}), 400
             
+            # Upload image to S3
+            s3_result = upload_image_to_s3(image, session_id, side)
+            
+            if not s3_result['success']:
+                return jsonify({'error': f'Failed to upload image to S3: {s3_result["error"]}'}), 500
+            
+            # Store S3 key in session storage for later retrieval
+            store_session_image(session_id, side, s3_result['s3_key'])
+            
+            # For front ID images, also save locally for AWS Rekognition face verification
+            if side == 'front':
+                try:
+                    # Create a unique filename for the temporary front image
+                    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                    temp_filename = f"temp_front_{session_id}_{timestamp}.jpg"
+                    temp_filepath = os.path.join(app.config['UPLOAD_FOLDER'], temp_filename)
+                    
+                    # Save the image locally
+                    cv2.imwrite(temp_filepath, image)
+                    
+                    # Store the local path for later use in face verification
+                    store_local_temp_image(session_id, 'front', temp_filepath)
+                    print(f"Saved front ID image locally for face verification: {temp_filepath}")
+                    
+                except Exception as e:
+                    print(f"Warning: Failed to save front image locally: {str(e)}")
+                    # Continue execution - S3 upload was successful, local save is just for face verification
+            
             # Skip quality validation - just save the image and proceed
             result = {
                 'success': True,
-                'image_path': filepath,
+                'image_path': s3_result['s3_url'],  # S3 URL instead of local path
+                's3_key': s3_result['s3_key'],      # Store S3 key for later retrieval
                 'session_id': session_id,
                 'message': f'ID {side} side captured successfully!',
                 'is_valid': True  # Always consider valid since user confirms manually
@@ -147,14 +248,41 @@ def process_id():
             image_bytes = io.BytesIO(base64.b64decode(image_data))
             image_pil = Image.open(image_bytes)
             
-            # Save the captured image
-            image_pil.save(filepath)
-            print(f"Saved captured image to {filepath}")
+            # Upload image to S3
+            s3_result = upload_image_to_s3(image_pil, session_id, side)
+            
+            if not s3_result['success']:
+                return jsonify({'error': f'Failed to upload image to S3: {s3_result["error"]}'}), 500
+            
+            print(f"Uploaded captured image to S3: {s3_result['s3_key']}")
+            
+            # Store S3 key in session storage for later retrieval
+            store_session_image(session_id, side, s3_result['s3_key'])
+            
+            # For front ID images, also save locally for AWS Rekognition face verification
+            if side == 'front':
+                try:
+                    # Create a unique filename for the temporary front image
+                    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                    temp_filename = f"temp_front_{session_id}_{timestamp}.jpg"
+                    temp_filepath = os.path.join(app.config['UPLOAD_FOLDER'], temp_filename)
+                    
+                    # Save the PIL image locally
+                    image_pil.save(temp_filepath, 'JPEG')
+                    
+                    # Store the local path for later use in face verification
+                    store_local_temp_image(session_id, 'front', temp_filepath)
+                    print(f"Saved front ID image locally for face verification: {temp_filepath}")
+                    
+                except Exception as e:
+                    print(f"Warning: Failed to save front image locally: {str(e)}")
+                    # Continue execution - S3 upload was successful, local save is just for face verification
             
             # Skip quality validation - just save the image and proceed
             result = {
                 'success': True,
-                'image_path': filepath,
+                'image_path': s3_result['s3_url'],  # S3 URL instead of local path
+                's3_key': s3_result['s3_key'],      # Store S3 key for later retrieval
                 'session_id': session_id,
                 'message': f'ID {side} side captured successfully!',
                 'is_valid': True  # Always consider valid since user confirms manually
@@ -263,8 +391,28 @@ def process_frame():
 
 @app.route('/uploads/<path:filename>')
 def uploaded_file(filename):
-    """Serve uploaded files."""
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    """Legacy route for backward compatibility - files are now stored in S3."""
+    return jsonify({'error': 'Files are now stored in S3. Use the S3 URLs provided in the response.'}), 404
+
+@app.route('/s3_image/<session_id>/<image_type>')
+def get_s3_image(session_id, image_type):
+    """Get a presigned URL for an S3 image."""
+    try:
+        # Get the S3 key from session storage (avoids s3:ListBucket permission)
+        target_s3_key = get_session_image(session_id, image_type)
+        
+        if not target_s3_key:
+            return jsonify({'error': 'Image not found'}), 404
+        
+        # Generate presigned URL
+        presigned_url = get_s3_image_url(target_s3_key)
+        if presigned_url:
+            return redirect(presigned_url)
+        else:
+            return jsonify({'error': 'Failed to generate image URL'}), 500
+            
+    except Exception as e:
+        return jsonify({'error': f'Error retrieving image: {str(e)}'}), 500
 
 @app.route('/face_verification')
 def face_verification():
@@ -292,106 +440,135 @@ def verify_face():
         image_bytes = base64.b64decode(image_data)
         face_image = Image.open(io.BytesIO(image_bytes))
         
-        # Save the captured face image
-        face_filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{session_id}_face.jpg")
-        face_image.save(face_filepath)
+        # Upload face image to S3
+        s3_result = upload_image_to_s3(face_image, session_id, 'face')
+        
+        if not s3_result['success']:
+            return jsonify({
+                'success': False,
+                'message': f'Failed to upload face image to S3: {s3_result["error"]}'
+            }), 500
+        
+        # Store face image S3 key in session storage
+        store_session_image(session_id, 'face', s3_result['s3_key'])
         
         # Convert to a format usable by face_recognition
         face_image_np = np.array(face_image)
         face_image_rgb = cv2.cvtColor(face_image_np, cv2.COLOR_BGR2RGB)
         
-        # Find the ID card front image path - prioritize the complete processed image
-        id_front_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{session_id}_front_complete.jpg")
+        # Try to get the local temporary front image first
+        local_front_image_path = get_local_temp_image(session_id, 'front')
         
-        # If complete image doesn't exist, check for the original front image
-        if not os.path.exists(id_front_path):
-            id_front_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{session_id}_front.jpg")
+        if local_front_image_path and os.path.exists(local_front_image_path):
+            print(f"Using local front ID image for face verification: {local_front_image_path}")
             
-        if not os.path.exists(id_front_path):
-            return jsonify({
-                'success': False,
-                'message': 'ID card image not found. Please complete the ID card scanning process first.'
-            }), 400
-        
-        # Load the ID card image
-        id_image = cv2.imread(id_front_path)
-        id_image_rgb = cv2.cvtColor(id_image, cv2.COLOR_BGR2RGB)
-        
-        # For debugging and display purposes
-        print(f"Using ID image from: {id_front_path}")
-        
-        # *** IMPORTANT: Use the full ID card image for comparison rather than extracting face ***
-        # This ensures we always have the ID photo visible for comparison
-        id_photo_url = f"/uploads/{os.path.basename(id_front_path)}"
-        
-        # Use AWS Rekognition to compare faces directly
-        try:
-            # Convert face image to format compatible with AWS Rekognition  
-            face_image_pil = Image.fromarray(cv2.cvtColor(face_image_np, cv2.COLOR_BGR2RGB))
-            
-            # Use AWS Rekognition to compare the captured face with the ID card image
-            comparison_result = compare_faces_aws(
-                source_image=id_image_rgb,  # ID card image
-                target_image=face_image_pil,  # Captured face
-                similarity_threshold=85  # Higher threshold for better security
-            )
-            
-            print(f"AWS Rekognition comparison result: {comparison_result}")
-            
-            if comparison_result['success']:
-                similarity = comparison_result['similarity']
-                confidence = comparison_result['confidence']
-                is_match = comparison_result['match']
-                face_distance = comparison_result['face_distance']
+            # Use local image for AWS Rekognition comparison
+            try:
+                # Convert face image to format compatible with AWS Rekognition  
+                face_image_pil = Image.fromarray(cv2.cvtColor(face_image_np, cv2.COLOR_BGR2RGB))
                 
-                # Try to extract and save face region from ID for display purposes
-                try:
-                    from aws_face_recognition import aws_face_recognition
-                    id_face_region = aws_face_recognition.extract_face_region(id_image_rgb)
-                    if id_face_region is not None:
-                        id_face_pil = Image.fromarray(cv2.cvtColor(id_face_region, cv2.COLOR_BGR2RGB))
-                        id_face_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{session_id}_id_face_detected.jpg")
-                        id_face_pil.save(id_face_path)
-                        id_display_url = f"/uploads/{session_id}_id_face_detected.jpg"
-                    else:
-                        id_display_url = id_photo_url
-                except Exception as e:
-                    print(f"Error extracting face for display: {str(e)}")
-                    id_display_url = id_photo_url
+                # Use AWS Rekognition with local front image
+                comparison_result = compare_faces_aws(
+                    source_image=local_front_image_path,  # Local front ID image
+                    target_image=face_image_pil,  # Captured face
+                    similarity_threshold=85  # Higher threshold for better security
+                )
                 
-                return jsonify({
-                    'success': is_match,
-                    'message': f'Face verification {"successful" if is_match else "failed"}. Similarity: {similarity:.1f}%, Confidence: {confidence:.1f}%' if is_match else 
-                               f'Face verification failed. The captured face does not match the ID card photo. Similarity: {similarity:.1f}%',
-                    'face_distance': float(face_distance),
-                    'similarity': float(similarity),
-                    'confidence': float(confidence),
-                    'id_photo_url': id_display_url
-                })
-            else:
-                # AWS Rekognition failed to find matching faces
-                error_msg = comparison_result.get('message', 'No matching faces found')
-                if 'error' in comparison_result:
-                    error_msg = f"AWS Rekognition error: {comparison_result['error']}"
+                # Generate S3 URL for display purposes (if available)
+                id_front_s3_key = get_session_image(session_id, 'front')
+                id_photo_url = get_s3_image_url(id_front_s3_key) if id_front_s3_key else None
                 
+            except Exception as e:
+                print(f"Error in local AWS Rekognition face comparison: {str(e)}")
+                import traceback
+                traceback.print_exc()
                 return jsonify({
                     'success': False,
-                    'message': f'Face verification failed. {error_msg}',
+                    'message': f'Face verification could not be completed using local image. AWS Rekognition error: {str(e)}',
+                    'face_distance': 1.0
+                })
+        
+        else:
+            # Fallback to S3-based comparison if local image is not available
+            print("Local front image not found, falling back to S3-based comparison")
+            
+            # Get the ID card front image S3 key from session storage
+            id_front_s3_key = get_session_image(session_id, 'front')
+            
+            if not id_front_s3_key:
+                return jsonify({
+                    'success': False,
+                    'message': 'ID card front image not found. Please complete the ID card scanning process first.'
+                }), 400
+            
+            # For debugging and display purposes
+            print(f"Using ID image from S3: {id_front_s3_key}")
+            
+            # Generate presigned URL for display purposes
+            id_photo_url = get_s3_image_url(id_front_s3_key)
+            
+            # Use AWS Rekognition to compare faces directly with S3 reference
+            try:
+                # Convert face image to format compatible with AWS Rekognition  
+                face_image_pil = Image.fromarray(cv2.cvtColor(face_image_np, cv2.COLOR_BGR2RGB))
+                
+                # Use AWS Rekognition S3-based comparison (no download required)
+                comparison_result = compare_faces_aws_s3(
+                    source_s3_bucket=s3_storage.bucket_name,  # S3 bucket name
+                    source_s3_key=id_front_s3_key,  # S3 key for ID card image
+                    target_image=face_image_pil,  # Captured face
+                    similarity_threshold=85  # Higher threshold for better security
+                )
+            except Exception as e:
+                print(f"Error in S3-based AWS Rekognition face comparison: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                return jsonify({
+                    'success': False,
+                    'message': f'Face verification could not be completed. AWS Rekognition S3 error: {str(e)}',
                     'face_distance': 1.0,
-                    'similarity': 0.0,
-                    'confidence': 0.0,
                     'id_photo_url': id_photo_url
                 })
-                
-        except Exception as e:
-            print(f"Error in AWS Rekognition face comparison: {str(e)}")
-            import traceback
-            traceback.print_exc()
+            
+        print(f"AWS Rekognition comparison result: {comparison_result}")
+        
+        # Cleanup local temporary files after face verification
+        try:
+            cleanup_local_temp_files(session_id)
+        except Exception as cleanup_error:
+            print(f"Warning: Error during cleanup: {str(cleanup_error)}")
+        
+        if comparison_result['success']:
+            similarity = comparison_result['similarity']
+            confidence = comparison_result['confidence']
+            is_match = comparison_result['match']
+            face_distance = comparison_result['face_distance']
+            
+            # Use the full ID card image URL for display
+            id_display_url = id_photo_url if 'id_photo_url' in locals() else None
+            
+            return jsonify({
+                'success': is_match,
+                'message': f'Face verification {"successful" if is_match else "failed"}. Similarity: {similarity:.1f}%, Confidence: {confidence:.1f}%' if is_match else 
+                           f'Face verification failed. The captured face does not match the ID card photo. Similarity: {similarity:.1f}%',
+                'face_distance': float(face_distance),
+                'similarity': float(similarity),
+                'confidence': float(confidence)
+                # Removed id_photo_url to prevent comparison display
+            })
+        else:
+            # AWS Rekognition failed to find matching faces
+            error_msg = comparison_result.get('message', 'No matching faces found')
+            if 'error' in comparison_result:
+                error_msg = f"AWS Rekognition error: {comparison_result['error']}"
+            
             return jsonify({
                 'success': False,
-                'message': f'Face verification could not be completed. AWS Rekognition error: {str(e)}',
+                'message': f'Face verification failed. {error_msg}',
                 'face_distance': 1.0,
-                'id_photo_url': id_photo_url
+                'similarity': 0.0,
+                'confidence': 0.0
+                # Removed id_photo_url to prevent comparison display
             })
     
     except Exception as e:
@@ -402,6 +579,179 @@ def verify_face():
             'success': False,
             'message': f'Error during face verification: {str(e)}'
         }), 500
+
+@app.route('/upload_video', methods=['POST'])
+def upload_video():
+    """Upload session video to S3."""
+    if 'video' not in request.files:
+        return jsonify({'success': False, 'error': 'No video file provided'}), 400
+    
+    video_file = request.files['video']
+    session_id = request.form.get('session_id')
+    camera_type = request.form.get('camera_type', 'front_camera')  # front_camera or back_camera
+    
+    if not session_id:
+        return jsonify({'success': False, 'error': 'Session ID is required'}), 400
+    
+    if not video_file:
+        return jsonify({'success': False, 'error': 'No video data provided'}), 400
+    
+    try:
+        # Read video data
+        video_data = video_file.read()
+        
+        # Determine file extension from mimetype
+        file_extension = 'mp4'  # Default to MP4
+        if video_file.content_type:
+            if 'mp4' in video_file.content_type:
+                file_extension = 'mp4'
+            elif 'webm' in video_file.content_type:
+                file_extension = 'webm'
+            elif 'avi' in video_file.content_type:
+                file_extension = 'avi'
+            elif 'mov' in video_file.content_type:
+                file_extension = 'mov'
+        
+        # Upload video to S3
+        upload_result = upload_video_to_s3(video_data, session_id, camera_type, file_extension)
+        
+        if upload_result['success']:
+            # Store video S3 key in session storage
+            store_session_video(session_id, camera_type, upload_result['s3_key'])
+            
+            return jsonify({
+                'success': True,
+                'message': f'{camera_type} video uploaded successfully',
+                's3_key': upload_result['s3_key'],
+                's3_url': upload_result['s3_url']
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'Failed to upload video: {upload_result["error"]}'
+            }), 500
+            
+    except Exception as e:
+        print(f"Error processing video upload: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Server error: {str(e)}'
+        }), 500
+
+@app.route('/start_video_recording', methods=['POST'])
+def start_video_recording():
+    """Initialize video recording session."""
+    try:
+        data = request.get_json()
+        session_id = data.get('session_id')
+        
+        if not session_id:
+            return jsonify({'success': False, 'error': 'Session ID is required'}), 400
+        
+        # Initialize video session tracking
+        if session_id not in video_sessions:
+            video_sessions[session_id] = {}
+        
+        print(f"Video recording session initialized for: {session_id}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Video recording session initialized',
+            'session_id': session_id
+        })
+        
+    except Exception as e:
+        print(f"Error initializing video recording: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Server error: {str(e)}'
+        }), 500
+
+@app.route('/get_session_videos/<session_id>')
+def get_session_videos(session_id):
+    """Get all videos for a session."""
+    try:
+        session_videos = video_sessions.get(session_id, {})
+        
+        # Generate presigned URLs for videos
+        video_urls = {}
+        for camera_type, s3_key in session_videos.items():
+            presigned_url = s3_storage.get_video_url(s3_key) if hasattr(s3_storage, 'get_video_url') else None
+            video_urls[camera_type] = {
+                's3_key': s3_key,
+                'url': presigned_url
+            }
+        
+        return jsonify({
+            'success': True,
+            'session_id': session_id,
+            'videos': video_urls
+        })
+        
+    except Exception as e:
+        print(f"Error retrieving session videos: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Server error: {str(e)}'
+        }), 500
+
+@app.route('/save_video_backup', methods=['POST'])
+def save_video_backup():
+    """Save video backup to local storage and optionally S3."""
+    if 'video' not in request.files:
+        return jsonify({'success': False, 'error': 'No video file provided'}), 400
+    
+    video_file = request.files['video']
+    session_id = request.form.get('session_id')
+    camera_type = request.form.get('camera_type', 'backup')
+    is_backup = request.form.get('is_backup', 'false').lower() == 'true'
+    
+    if not session_id:
+        return jsonify({'success': False, 'error': 'Session ID is required'}), 400
+    
+    if not video_file:
+        return jsonify({'success': False, 'error': 'No video data provided'}), 400
+    
+    try:
+        # Read video data
+        video_data = video_file.read()
+        
+        # Determine file extension from mimetype
+        file_extension = 'mp4'  # Default to MP4
+        if video_file.content_type:
+            if 'mp4' in video_file.content_type:
+                file_extension = 'mp4'
+            elif 'webm' in video_file.content_type:
+                file_extension = 'webm'
+        
+        # Save locally first (always save backups locally)
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        local_filename = f"backup_{session_id}_{camera_type}_{timestamp}.{file_extension}"
+        local_path = os.path.join(app.config['UPLOAD_FOLDER'], local_filename)
+        
+        with open(local_path, 'wb') as f:
+            f.write(video_data)
+        
+        print(f"💾 Video backup saved locally: {local_path} ({len(video_data) / 1024 / 1024:.2f} MB)")
+        
+        result = {
+            'success': True,
+            'local_path': local_path,
+            'filename': local_filename,
+            'size_mb': len(video_data) / 1024 / 1024
+        }
+        
+        # Only save backups locally - don't upload intermediate videos to S3
+        # Final video will be uploaded when recording session ends
+        print(f"💾 Video backup saved locally only (S3 upload reserved for final video)")
+        
+        # Note: Removed automatic S3 upload for backups to avoid multiple videos in bucket
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        print(f"❌ Error saving video backup: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
     # Get the server IP address for easy access from mobile devices

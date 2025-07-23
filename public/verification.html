@@ -301,6 +301,54 @@
     </div>
 
     <script src="js/translation-manager.js"></script>
+    <script src="js/video-recorder.js"></script>
     <script src="verification.js"></script>
+    
+    <script>
+        // Initialize video recording when verification page loads
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🔍 Verification page loaded - checking video recording...');
+            
+            // Get existing session ID from localStorage
+            let sessionId = localStorage.getItem('kyc_session_id');
+            if (!sessionId) {
+                sessionId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                    return v.toString(16);
+                });
+                localStorage.setItem('kyc_session_id', sessionId);
+            }
+            
+            // Check if video recording is already active
+            if (!window.videoRecordingManager.isRecording) {
+                try {
+                    // Initialize and start recording for this page
+                    const initialized = await window.videoRecordingManager.initializeSession(sessionId);
+                    
+                    if (initialized) {
+                        setTimeout(async () => {
+                            try {
+                                await window.videoRecordingManager.startRecording();
+                                console.log('✅ Verification page video recording started');
+                            } catch (error) {
+                                console.warn('⚠️ Could not start video recording on verification page:', error.message);
+                            }
+                        }, 1000); // 1 second delay for verification page
+                    }
+                } catch (error) {
+                    console.warn('⚠️ Video recording initialization failed on verification page:', error.message);
+                }
+            } else {
+                console.log('ℹ️ Video recording already active - continuing session');
+            }
+        });
+        
+        // Stop recording when user leaves the verification page
+        window.addEventListener('beforeunload', function() {
+            if (window.videoRecordingManager && window.videoRecordingManager.isRecording) {
+                window.videoRecordingManager.stopRecording();
+            }
+        });
+    </script>
 </body>
 </html> 
