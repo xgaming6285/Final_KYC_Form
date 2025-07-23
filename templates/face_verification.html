@@ -199,28 +199,181 @@
         const sessionId = localStorage.getItem('kyc_session_id');
         let capturedImageData = null;
         
-        // Initialize camera
+        // Server logging function for mobile debugging
+        async function serverLog(message, level = 'INFO') {
+            try {
+                console.log(`[${level}] ${message}`); // Still log to console if available
+                await fetch('/debug_log', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        level: level,
+                        session_id: sessionId || 'no-session'
+                    })
+                });
+            } catch (error) {
+                console.error('Failed to send log to server:', error);
+            }
+        }
+        
+        // Camera cleanup function to resolve conflicts - optimized for speed
+        async function cleanupExistingCameras() {
+            try {
+                await serverLog('🧹 Cleaning up existing camera streams...');
+                
+                // Stop any existing video streams quickly
+                if (video.srcObject) {
+                    const tracks = video.srcObject.getTracks();
+                    tracks.forEach(track => {
+                        track.stop();
+                        serverLog(`🛑 Stopped video track: ${track.kind}`);
+                    });
+                    video.srcObject = null;
+                }
+                
+                // Minimal wait for cleanup - just enough for resources to release
+                await new Promise(resolve => setTimeout(resolve, 100));
+                await serverLog('✅ Camera cleanup completed');
+                
+            } catch (error) {
+                await serverLog(`⚠️ Camera cleanup error: ${error.message}`, 'WARN');
+            }
+        }
+        
+        // Initialize camera with instant startup - no unnecessary delays
         async function initCamera() {
             try {
-                console.log('🎥 Initializing camera for face verification...');
+                await serverLog('🎥 Initializing camera for face verification...');
                 
-                // Create camera stream directly for face verification - prioritize this over video recording
-                let stream = null;
+                // Quick cleanup of existing streams (no delays)
+                await cleanupExistingCameras();
                 
-                try {
-                    // Create camera stream directly for face verification with higher priority
-                    stream = await navigator.mediaDevices.getUserMedia({
-                        video: {
-                            facingMode: 'user', // Use front camera for face verification
-                            width: { ideal: 640 },
-                            height: { ideal: 480 }
+                // Aggressively stop all video recording to release ALL cameras
+                if (window.videoRecordingManager) {
+                    await serverLog('🛑 Aggressively stopping all video recording...');
+                    
+                    // Stop recording immediately
+                    if (window.videoRecordingManager.isRecording) {
+                        window.videoRecordingManager.stopRecording();
+                    }
+                    
+                    // Force stop ALL MediaRecorder instances
+                    if (window.videoRecordingManager.mediaRecorders) {
+                        for (const cameraType of Object.keys(window.videoRecordingManager.mediaRecorders)) {
+                            const recorder = window.videoRecordingManager.mediaRecorders[cameraType];
+                            if (recorder && recorder.state !== 'inactive') {
+                                await serverLog(`🛑 Force stopping ${cameraType} MediaRecorder...`);
+                                recorder.stop();
+                            }
                         }
-                    });
-                    console.log('📷 Camera stream created successfully for face verification');
-                } catch (cameraError) {
-                    console.error('❌ Failed to create camera stream:', cameraError);
-                    throw cameraError;
+                        window.videoRecordingManager.mediaRecorders = {};
+                    }
+                    
+                    // Force stop ALL camera streams
+                    if (window.videoRecordingManager.streams) {
+                        for (const cameraType of Object.keys(window.videoRecordingManager.streams)) {
+                            const stream = window.videoRecordingManager.streams[cameraType];
+                            if (stream) {
+                                await serverLog(`🎥 Force releasing ${cameraType} camera stream...`);
+                                for (const track of stream.getTracks()) {
+                                    track.stop();
+                                    await serverLog(`✋ Stopped ${track.kind} track for ${cameraType}`);
+                                }
+                            }
+                        }
+                        window.videoRecordingManager.streams = {};
+                    }
+                    
+                    // Clear all intervals
+                    if (window.videoRecordingManager.autoSaveInterval) {
+                        clearInterval(window.videoRecordingManager.autoSaveInterval);
+                        window.videoRecordingManager.autoSaveInterval = null;
+                    }
+                    if (window.videoRecordingManager.backupSaveInterval) {
+                        clearInterval(window.videoRecordingManager.backupSaveInterval);
+                        window.videoRecordingManager.backupSaveInterval = null;
+                    }
+                    
+                    // Reset recording state
+                    window.videoRecordingManager.isRecording = false;
+                    
+                    await serverLog('✅ All video recording resources forcefully released');
+                    
+                    // Wait longer for all browser resources to be fully released
+                    await new Promise(resolve => setTimeout(resolve, 2000));
                 }
+                
+                // First enumerate devices to help resolve conflicts
+                await serverLog('📷 Enumerating media devices...');
+                try {
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const cameras = devices.filter(device => device.kind === 'videoinput');
+                    await serverLog(`📹 Found ${cameras.length} camera(s) available`);
+                    if (cameras.length === 0) {
+                        throw new Error('No cameras found on this device');
+                    }
+                } catch (enumError) {
+                    await serverLog(`⚠️ Device enumeration warning: ${enumError.message}`, 'WARN');
+                }
+                
+                // Try multiple camera configurations for maximum compatibility
+                await serverLog('📷 Accessing camera with fallback configurations...');
+                
+                const cameraConfigs = [
+                    // Config 1 - Most basic (fastest)
+                    {
+                        video: true
+                    },
+                    // Config 2 - Front camera minimal
+                    {
+                        video: {
+                            facingMode: 'user'
+                        }
+                    },
+                    // Config 3 - Front camera with constraints
+                    {
+                        video: {
+                            facingMode: 'user',
+                            width: { ideal: 640, min: 320 },
+                            height: { ideal: 480, min: 240 }
+                        }
+                    }
+                ];
+                
+                let stream = null;
+                let configUsed = 0;
+                
+                for (let i = 0; i < cameraConfigs.length && !stream; i++) {
+                    try {
+                        await serverLog(`📷 Trying camera config ${i + 1}/${cameraConfigs.length}...`);
+                        stream = await Promise.race([
+                            navigator.mediaDevices.getUserMedia(cameraConfigs[i]),
+                            new Promise((_, reject) => 
+                                setTimeout(() => reject(new Error('Camera access timeout')), 1500) // Faster timeout
+                            )
+                        ]);
+                                                 configUsed = i + 1;
+                         await serverLog(`✅ Camera accessed successfully with config ${configUsed}`);
+                         break;
+                                         } catch (error) {
+                        await serverLog(`⚠️ Config ${i + 1} failed: ${error.name || 'Unknown'} - ${error.message}`, 'WARN');
+                        
+                        // Special handling for specific camera errors
+                        if (error.name === 'NotReadableError' || error.message.includes('in use')) {
+                            await serverLog('🔄 Camera in use - waiting 2s before next attempt...', 'WARN');
+                            await new Promise(resolve => setTimeout(resolve, 2000)); // Extra wait for "in use" errors
+                        } else if (error.name === 'OverconstrainedError') {
+                            await serverLog('🔧 Camera constraints too strict - trying simpler config...', 'WARN');
+                        }
+                        
+                        if (i === cameraConfigs.length - 1) {
+                            throw error; // Throw the last error if all configs fail
+                        }
+                    }
+                 }
                 
                 if (!stream) {
                     throw new Error('Could not access camera - no stream available');
@@ -228,17 +381,17 @@
                 
                 video.srcObject = stream;
                 
-                // Ensure video actually starts playing immediately
+                // Start video playback immediately
                 return new Promise((resolve, reject) => {
                     const timeoutId = setTimeout(() => {
-                        console.error('❌ Camera initialization timeout');
-                        reject(new Error('Camera initialization timeout'));
-                    }, 10000); // 10 second timeout instead of 5
+                        serverLog('❌ Video playback timeout', 'ERROR');
+                        reject(new Error('Video playback timeout'));
+                    }, 8000); // Reasonable timeout for video to start
                     
                     video.onloadedmetadata = () => {
-                        console.log('📹 Video metadata loaded, starting playback...');
+                        serverLog('📹 Video metadata loaded, starting playback...');
                         video.play().then(() => {
-                            console.log('✅ Video playback started successfully');
+                            serverLog('✅ Camera ready for face verification');
                             clearTimeout(timeoutId);
                             overlayCanvas.width = video.videoWidth;
                             overlayCanvas.height = video.videoHeight;
@@ -248,37 +401,37 @@
                             statusMessage.style.color = "#2e7d32";
                             resolve();
                         }).catch((playError) => {
-                            console.error('❌ Video playback failed:', playError);
+                            serverLog(`❌ Video playback failed: ${playError.message}`, 'ERROR');
                             clearTimeout(timeoutId);
                             reject(playError);
                         });
                     };
                     
                     video.onerror = (error) => {
-                        console.error('❌ Video element error:', error);
+                        serverLog(`❌ Video element error: ${error}`, 'ERROR');
                         clearTimeout(timeoutId);
                         reject(new Error('Video playback failed'));
                     };
                 });
                 
             } catch (err) {
-                console.error("Error accessing camera:", err);
+                await serverLog(`❌ Camera initialization failed: ${err.message}`, 'ERROR');
                 
-                // Provide more specific error messages
+                // Provide specific error messages
                 let errorMessage = "Error accessing camera. ";
                 
                 if (err.name === 'NotAllowedError') {
                     errorMessage += "Camera permission was denied. Please allow camera access and refresh the page.";
                 } else if (err.name === 'NotFoundError') {
                     errorMessage += "No camera found on this device.";
-                } else if (err.name === 'NotReadableError') {
-                    errorMessage += "Camera is already in use by another application. Please close other apps using the camera and try again.";
+                } else if (err.name === 'NotReadableError' || err.message.includes('in use') || err.message.includes('already')) {
+                    errorMessage += "Camera is currently in use. Please wait a moment and try again.";
                 } else if (err.name === 'AbortError') {
                     errorMessage += "Camera access was aborted.";
                 } else if (err.name === 'NotSupportedError') {
                     errorMessage += "Camera access is not supported in this browser.";
-                } else if (err.message && err.message.includes('timeout')) {
-                    errorMessage += "Camera is taking too long to initialize. Please try again.";
+                } else if (err.message && (err.message.includes('timeout') || err.message.includes('Camera access timeout'))) {
+                    errorMessage += "Camera is taking longer than expected. Please try again.";
                 } else {
                     errorMessage += "Please ensure camera permissions are granted and try again.";
                 }
@@ -287,16 +440,18 @@
                 statusMessage.style.backgroundColor = "#ffebee";
                 statusMessage.style.color = "#c62828";
                 
-                // Add retry button
+                // Add single retry button (no more multiple retries)
                 const retryButton = document.createElement('button');
-                retryButton.textContent = 'Retry Camera Access';
+                retryButton.textContent = 'Try Again';
                 retryButton.className = 'btn';
                 retryButton.style.marginTop = '10px';
                 retryButton.onclick = async () => {
                     retryButton.remove();
-                    statusMessage.textContent = "Retrying camera access...";
+                    statusMessage.textContent = "Accessing camera...";
                     statusMessage.style.backgroundColor = "#e3f2fd";
                     statusMessage.style.color = "#1976d2";
+                    // Quick retry without long delays
+                    await cleanupExistingCameras();
                     await initCamera();
                 };
                 statusMessage.parentNode.insertBefore(retryButton, statusMessage.nextSibling);
@@ -509,7 +664,7 @@
     <script>
         // Initialize video recording for face verification page
         document.addEventListener('DOMContentLoaded', async function() {
-            console.log('👤 Face verification page loaded - setting up video recording...');
+            await serverLog('👤 Face verification page loaded - setting up video recording...');
             
             // Get session ID from localStorage
             let sessionId = localStorage.getItem('kyc_session_id');
@@ -519,6 +674,9 @@
                     return v.toString(16);
                 });
                 localStorage.setItem('kyc_session_id', sessionId);
+                await serverLog(`🆔 Generated new session ID: ${sessionId}`);
+            } else {
+                await serverLog(`🆔 Using existing session ID: ${sessionId}`);
             }
             
             // Add recording notification banner for face verification
@@ -541,76 +699,76 @@
             `;
             document.body.insertBefore(notification, document.body.firstChild);
             
-            // Initialize face verification camera FIRST and immediately
-            console.log('📷 Starting immediate camera initialization...');
-            try {
-                await initCamera(); // Await the promise
-                console.log('✅ Face verification camera initialized successfully');
-            } catch (error) {
-                console.error('❌ Face verification camera initialization failed:', error);
-                // Don't proceed with video recording if camera fails
-                return;
+            // Stop any existing video recording immediately before camera initialization
+            await serverLog('📷 Preparing for instant camera initialization...');
+            
+            // Aggressively clean up ALL video recording resources immediately
+            if (window.videoRecordingManager) {
+                await serverLog('🛑 Immediate aggressive cleanup of video recording...');
+                
+                // Stop recording immediately
+                window.videoRecordingManager.isRecording = false;
+                
+                // Force stop ALL MediaRecorder instances
+                if (window.videoRecordingManager.mediaRecorders) {
+                    for (const cameraType of Object.keys(window.videoRecordingManager.mediaRecorders)) {
+                        const recorder = window.videoRecordingManager.mediaRecorders[cameraType];
+                        if (recorder && recorder.state !== 'inactive') {
+                            await serverLog(`🛑 Immediate stop ${cameraType} recorder...`);
+                            recorder.stop();
+                        }
+                    }
+                    window.videoRecordingManager.mediaRecorders = {};
+                }
+                
+                // Force stop ALL camera streams
+                if (window.videoRecordingManager.streams) {
+                    for (const cameraType of Object.keys(window.videoRecordingManager.streams)) {
+                        const stream = window.videoRecordingManager.streams[cameraType];
+                        if (stream) {
+                            await serverLog(`🎥 Immediate release ${cameraType} camera...`);
+                            stream.getTracks().forEach(track => track.stop());
+                        }
+                    }
+                    window.videoRecordingManager.streams = {};
+                }
+                
+                // Clear all intervals immediately
+                if (window.videoRecordingManager.autoSaveInterval) {
+                    clearInterval(window.videoRecordingManager.autoSaveInterval);
+                    window.videoRecordingManager.autoSaveInterval = null;
+                }
+                if (window.videoRecordingManager.backupSaveInterval) {
+                    clearInterval(window.videoRecordingManager.backupSaveInterval);
+                    window.videoRecordingManager.backupSaveInterval = null;
+                }
+                
+                await serverLog('✅ Immediate cleanup completed');
             }
             
-            // AFTER camera is working, initialize video recording in background
-            // Wait a bit to ensure camera is stable before starting video recording
-            setTimeout(async () => {
-                try {
-                    console.log('🎥 Initializing background video recording (after camera is stable)...');
-                    
-                    if (!window.videoRecordingManager) {
-                        console.error('❌ Video recording manager not available');
-                        return;
-                    }
-                    
-                    console.log('✅ Video recording manager is available');
-                    console.log('📍 Current recording state:', window.videoRecordingManager.isRecording);
-                    
-                    if (!window.videoRecordingManager.isRecording) {
-                        console.log('🔄 Initializing new video recording session...');
-                        // Initialize video recording session
-                        const initialized = await window.videoRecordingManager.initializeSession(sessionId);
-                        
-                        if (initialized) {
-                            console.log('✅ Video recording session initialized for face verification');
-                            
-                            // Start recording in background mode (separate from face verification camera)
-                            try {
-                                console.log('▶️ Starting video recording...');
-                                await window.videoRecordingManager.startRecording();
-                                console.log('✅ Background video recording started successfully');
-                                
-                                // Set up auto-save interval for video recording (less frequent during face verification)
-                                if (window.videoRecordingManager.autoSaveInterval) {
-                                    clearInterval(window.videoRecordingManager.autoSaveInterval);
-                                }
-                                
-                                window.videoRecordingManager.autoSaveInterval = setInterval(async () => {
-                                    if (window.videoRecordingManager && window.videoRecordingManager.isRecording) {
-                                        console.log('💾 Auto-saving video progress during face verification...');
-                                        await window.videoRecordingManager.saveCurrentVideoProgress();
-                                    }
-                                }, 15000); // Every 15 seconds
-                                
-                            } catch (recordingError) {
-                                console.warn('⚠️ Background video recording failed:', recordingError.message);
-                                console.error('📄 Full recording error:', recordingError);
-                                // Continue without video recording if it fails
-                            }
-                        } else {
-                            console.error('❌ Failed to initialize video recording session');
-                        }
-                    } else {
-                        console.log('ℹ️ Video recording already active - continuing session');
-                        // Save current progress
-                        await window.videoRecordingManager.saveCurrentVideoProgress();
-                    }
-                } catch (error) {
-                    console.warn('⚠️ Background video recording setup failed:', error.message);
-                    console.error('📄 Full setup error:', error);
-                    // Continue without video recording if it fails
-                }
-            }, 2000); // 2 second delay to ensure camera is stable
+            // Longer delay to ensure all browser resources are completely freed
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            // Start camera initialization immediately 
+            initCamera().then(() => {
+                serverLog('✅ Face verification camera initialized successfully');
+            }).catch((error) => {
+                serverLog(`❌ Face verification camera initialization failed: ${error.message}`, 'ERROR');
+                serverLog('⚠️ Camera failed to initialize - user can retry manually', 'WARN');
+            });
+            
+            // Ensure video recording manager doesn't start new recordings
+            if (window.videoRecordingManager) {
+                // Override the startRecording method to prevent new recordings during face verification
+                const originalStartRecording = window.videoRecordingManager.startRecording;
+                window.videoRecordingManager.startRecording = async function() {
+                    await serverLog('🚫 Video recording disabled during face verification phase');
+                    return false; // Don't start recording
+                };
+                await serverLog('🔒 Video recording manager locked to prevent camera conflicts');
+            }
+            
+            await serverLog('ℹ️ Face verification phase - no video recording to avoid camera conflicts');
         });
         
         // Complete KYC and upload final video
@@ -620,62 +778,61 @@
             completeBtn.disabled = true;
             completeBtn.textContent = 'Completing KYC...';
             
-            console.log('🏁 Starting KYC completion process...');
+            await serverLog('🏁 Starting KYC completion process...');
             
             try {
                 let videoUploadSuccess = false;
                 let videoUploadMessage = '';
                 
-                // Upload final video to S3 when completing KYC
-                if (window.videoRecordingManager && window.videoRecordingManager.isRecording) {
-                    console.log('☁️ Finalizing video recording and uploading to S3...');
+                // Always try to upload backup videos since face verification doesn't do live recording
+                await serverLog('📤 Uploading session videos to S3...');
+                completeBtn.textContent = 'Uploading videos...';
+                
+                try {
+                    // First, try to upload the most recent backup videos to S3
+                    await serverLog('🔄 Uploading backup videos from ID capture phase...');
                     
-                    // First, save any remaining video chunks
-                    await window.videoRecordingManager.saveCurrentVideoProgress();
-                    console.log('💾 Final video progress saved');
+                    const fallbackResponse = await fetch('/upload_backup_video_to_s3', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            session_id: sessionId
+                        })
+                    });
                     
-                    // Update button text to show upload progress
-                    completeBtn.textContent = 'Preparing video...';
+                    const fallbackResult = await fallbackResponse.json();
                     
-                    // Wait a moment for any final chunks to be processed
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                    
-                    // Upload final consolidated video to S3
-                    console.log('📤 Uploading final video to S3...');
-                    completeBtn.textContent = 'Uploading video...';
-                    
-                    try {
-                        const uploadResult = await window.videoRecordingManager.uploadFinalVideoToS3();
-                        
-                        if (uploadResult.success) {
-                            console.log('✅ Final video uploaded successfully:', uploadResult);
-                            videoUploadSuccess = true;
-                            videoUploadMessage = uploadResult.message || 'Video uploaded successfully';
-                            statusMessage.textContent = `Video uploaded successfully (${uploadResult.message || 'Upload complete'})`;
-                            statusMessage.style.backgroundColor = "#e8f5e8";
-                            statusMessage.style.color = "#2e7d32";
-                        } else {
-                            console.error('❌ Failed to upload final video to S3:', uploadResult.error);
-                            videoUploadMessage = `Video upload failed: ${uploadResult.error}`;
-                            statusMessage.textContent = `Warning: ${uploadResult.error} - KYC will complete without video.`;
-                            statusMessage.style.backgroundColor = "#fff3cd";
-                            statusMessage.style.color = "#856404";
-                        }
-                    } catch (uploadError) {
-                        console.error('❌ Exception during video upload:', uploadError);
-                        videoUploadMessage = `Video upload error: ${uploadError.message}`;
-                        statusMessage.textContent = `Warning: Video upload failed - KYC will complete without video.`;
+                    if (fallbackResult.success) {
+                        await serverLog(`✅ Session videos uploaded successfully: ${fallbackResult.message}`);
+                        videoUploadSuccess = true;
+                        videoUploadMessage = `Session videos uploaded: ${fallbackResult.message}`;
+                        statusMessage.textContent = `Videos uploaded successfully`;
+                        statusMessage.style.backgroundColor = "#e8f5e8";
+                        statusMessage.style.color = "#2e7d32";
+                    } else {
+                        await serverLog(`⚠️ Backup video upload had issues: ${fallbackResult.error}`, 'WARN');
+                        videoUploadMessage = `Video upload completed with warnings: ${fallbackResult.error}`;
+                        statusMessage.textContent = `Videos uploaded with warnings: ${fallbackResult.error}`;
                         statusMessage.style.backgroundColor = "#fff3cd";
                         statusMessage.style.color = "#856404";
+                        // Still consider this a success since some videos might have uploaded
+                        videoUploadSuccess = true;
                     }
                     
-                    // Stop recording after upload attempt
-                    console.log('🛑 Stopping video recording...');
+                } catch (uploadError) {
+                    await serverLog(`❌ Video upload error: ${uploadError.message}`, 'ERROR');
+                    videoUploadMessage = `Video upload failed: ${uploadError.message}`;
+                    statusMessage.textContent = `Warning: Video upload failed - KYC will complete without video.`;
+                    statusMessage.style.backgroundColor = "#ffebee";
+                    statusMessage.style.color = "#c62828";
+                }
+                
+                // Clean up video recording manager state
+                if (window.videoRecordingManager) {
+                    await serverLog('🛑 Stopping video recording...');
                     window.videoRecordingManager.stopRecording();
-                    
-                } else {
-                    console.log('ℹ️ No active video recording to upload');
-                    videoUploadMessage = 'No video recording was active';
                 }
                 
                 // Clear any remaining intervals
@@ -685,7 +842,7 @@
                 }
                 
                 // Clear session storage to complete KYC
-                console.log('🧹 Cleaning up session data...');
+                await serverLog('🧹 Cleaning up session data...');
                 
                 // Show success message
                 completeBtn.textContent = 'KYC Complete!';
@@ -704,13 +861,13 @@
                 
                 // Brief delay to show success message
                 setTimeout(() => {
-                    console.log('🏠 Redirecting to homepage...');
+                    serverLog('🏠 Redirecting to homepage...');
                     // Redirect to homepage
                     window.location.href = "/";
                 }, 3000); // Increased delay to show message
                 
             } catch (error) {
-                console.error('❌ Error completing KYC:', error);
+                await serverLog(`❌ Error completing KYC: ${error.message}`, 'ERROR');
                 completeBtn.disabled = false;
                 completeBtn.textContent = 'Complete KYC';
                 completeBtn.style.backgroundColor = '#4CAF50';

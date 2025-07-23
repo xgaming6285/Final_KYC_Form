@@ -283,6 +283,7 @@ class VideoRecordingManager {
                 return;
             }
             
+            const recordingDuration = this.recordingStartTime ? (Date.now() - this.recordingStartTime) / 1000 : 0;
             console.log(`📤 Uploading ${cameraType} camera video (${(videoBlob.size / 1024 / 1024).toFixed(2)} MB, ${recordingDuration.toFixed(1)}s)...`);
             
             // Create form data
@@ -537,20 +538,20 @@ class VideoRecordingManager {
      * Setup auto-save functionality
      */
     setupAutoSave() {
-        // Auto-save every 60 seconds during recording (more frequent)
+        // Auto-save every 30 seconds during recording for better chunk collection
         this.autoSaveInterval = setInterval(async () => {
             if (this.isRecording) {
                 console.log('📁 Auto-saving video progress...');
                 await this.saveCurrentVideoProgress();
             }
-        }, 60000); // 1 minute
+        }, 30000); // 30 seconds - more frequent for better data collection
         
-        // Backup save every 20 seconds (more frequent for safety)
+        // Backup save every 15 seconds (more frequent for safety)
         this.backupSaveInterval = setInterval(async () => {
             if (this.isRecording) {
                 await this.backupVideoLocally();
             }
-        }, 20000); // 20 seconds
+        }, 15000); // 15 seconds - very frequent to ensure data is not lost
     }
 
     /**
@@ -641,15 +642,35 @@ class VideoRecordingManager {
         console.log(`🎯 Selected ${bestCameraType} camera for final upload (${totalChunks} total chunks, ${(maxSize / 1024 / 1024).toFixed(2)} MB)`);
 
         try {
+            // Ensure video chunks are properly collected before creating blob
+            if (this.isRecording) {
+                console.log('🔄 Requesting final data from active recorders...');
+                // Request final data from any active recorders
+                Object.keys(this.mediaRecorders).forEach(cameraType => {
+                    const mediaRecorder = this.mediaRecorders[cameraType];
+                    if (mediaRecorder && mediaRecorder.state === 'recording') {
+                        mediaRecorder.requestData();
+                    }
+                });
+                
+                // Wait a moment for final chunks to be collected
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // Recalculate sizes after final data collection
+                maxSize = this.videoChunks[bestCameraType] ? 
+                    this.videoChunks[bestCameraType].reduce((sum, chunk) => sum + chunk.size, 0) : 0;
+                console.log(`📊 Updated size after final data collection: ${(maxSize / 1024 / 1024).toFixed(2)} MB`);
+            }
+
             // Create final video blob from the best camera
             const mimeType = this.videoExtension === 'mp4' ? 'video/mp4' : 'video/webm';
             const finalVideoBlob = new Blob(this.videoChunks[bestCameraType], { type: mimeType });
 
             console.log(`📤 Creating final video blob: ${(finalVideoBlob.size / 1024 / 1024).toFixed(2)} MB, type: ${mimeType}`);
 
-            if (finalVideoBlob.size === 0) {
-                console.log('❌ Final video blob is empty - cannot upload');
-                return { success: false, error: 'Final video blob is empty' };
+            if (finalVideoBlob.size < 1024) { // Must be at least 1KB to be meaningful
+                console.log(`❌ Final video blob too small (${finalVideoBlob.size} bytes) - likely empty recording`);
+                return { success: false, error: 'Final video recording is too small or empty' };
             }
 
             // Create form data for final upload

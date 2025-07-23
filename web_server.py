@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template, redirect, url_for, send_from_directory
+from flask import Flask, request, jsonify, render_template, redirect, url_for, send_from_directory, current_app
 import os
 import uuid
 import cv2
@@ -637,6 +637,133 @@ def upload_video():
             'success': False,
             'error': f'Server error: {str(e)}'
         }), 500
+
+@app.route('/upload_backup_video_to_s3', methods=['POST'])
+def upload_backup_video_to_s3():
+    """Upload the most recent backup video to S3 as fallback."""
+    try:
+        data = request.get_json()
+        session_id = data.get('session_id')
+        
+        if not session_id:
+            return jsonify({'success': False, 'error': 'Session ID is required'}), 400
+        
+        print(f"📤 Attempting fallback upload for session: {session_id}")
+        
+        # Find the most recent backup video file for this session
+        upload_dir = os.path.join(current_app.root_path, 'uploads')
+        if not os.path.exists(upload_dir):
+            return jsonify({'success': False, 'error': 'Upload directory not found'}), 404
+        
+        # Look for backup files for this session
+        backup_pattern = f"backup_{session_id}_*_backup_*.mp4"
+        backup_files = []
+        
+        for filename in os.listdir(upload_dir):
+            if filename.startswith(f"backup_{session_id}_") and filename.endswith('.mp4'):
+                file_path = os.path.join(upload_dir, filename)
+                file_stat = os.stat(file_path)
+                backup_files.append({
+                    'path': file_path,
+                    'name': filename,
+                    'size': file_stat.st_size,
+                    'mtime': file_stat.st_mtime
+                })
+        
+        if not backup_files:
+            return jsonify({'success': False, 'error': 'No backup video files found for this session'}), 404
+        
+        # Sort by modification time (newest first) and file size (largest first)
+        backup_files.sort(key=lambda x: (x['mtime'], x['size']), reverse=True)
+        
+        print(f"📁 Found {len(backup_files)} backup files for session {session_id}")
+        
+        # Upload all backup videos (up to 3 most recent/largest ones to avoid overwhelming S3)
+        uploaded_videos = []
+        failed_uploads = []
+        max_uploads = min(3, len(backup_files))  # Limit to 3 videos max
+        
+        for i, backup_file in enumerate(backup_files[:max_uploads]):
+            try:
+                print(f"📤 Uploading backup {i+1}/{max_uploads}: {backup_file['name']} ({backup_file['size']} bytes)")
+                
+                # Read the video file
+                with open(backup_file['path'], 'rb') as video_file:
+                    video_data = video_file.read()
+                
+                if len(video_data) == 0:
+                    print(f"⚠️ Skipping empty backup video: {backup_file['name']}")
+                    failed_uploads.append(f"{backup_file['name']} (empty)")
+                    continue
+                
+                # Upload to S3 with unique camera type
+                camera_type = f'backup_{i+1}' if i > 0 else 'final_backup'
+                upload_result = upload_video_to_s3(video_data, session_id, camera_type, 'mp4')
+                
+                if upload_result['success']:
+                    # Store video S3 key in session storage
+                    store_session_video(session_id, camera_type, upload_result['s3_key'])
+                    
+                    uploaded_videos.append({
+                        'filename': backup_file['name'],
+                        's3_key': upload_result['s3_key'],
+                        's3_url': upload_result['s3_url'],
+                        'size_mb': len(video_data) / 1024 / 1024
+                    })
+                    
+                    print(f"✅ Backup video {i+1} uploaded to S3: {upload_result['s3_key']} ({len(video_data) / 1024 / 1024:.1f} MB)")
+                else:
+                    failed_uploads.append(f"{backup_file['name']} ({upload_result['error']})")
+                    print(f"❌ Failed to upload backup {i+1}: {upload_result['error']}")
+                    
+            except Exception as e:
+                failed_uploads.append(f"{backup_file['name']} (exception: {str(e)})")
+                print(f"❌ Exception uploading backup {i+1}: {str(e)}")
+        
+        # Prepare response
+        if uploaded_videos:
+            total_size = sum(video['size_mb'] for video in uploaded_videos)
+            success_message = f"{len(uploaded_videos)} videos uploaded ({total_size:.1f} MB total)"
+            
+            if failed_uploads:
+                success_message += f", {len(failed_uploads)} failed"
+            
+            return jsonify({
+                'success': True,
+                'message': success_message,
+                'uploaded_videos': uploaded_videos,
+                'failed_uploads': failed_uploads if failed_uploads else None,
+                'total_uploaded': len(uploaded_videos),
+                'total_failed': len(failed_uploads)
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'All backup video uploads failed: {", ".join(failed_uploads)}'
+            }), 500
+            
+    except Exception as e:
+        print(f"Error uploading backup video: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Server error: {str(e)}'
+        }), 500
+
+@app.route('/debug_log', methods=['POST'])
+def debug_log():
+    """Receive debug logs from client."""
+    try:
+        data = request.get_json()
+        log_message = data.get('message', '')
+        log_level = data.get('level', 'INFO')
+        session_id = data.get('session_id', 'unknown')
+        
+        print(f"[CLIENT-{log_level}] [{session_id}] {log_message}")
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        print(f"Error receiving debug log: {str(e)}")
+        return jsonify({'success': False}), 500
 
 @app.route('/start_video_recording', methods=['POST'])
 def start_video_recording():
