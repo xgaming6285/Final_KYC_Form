@@ -5,267 +5,455 @@
  */
 
 class VideoRecordingManager {
-    constructor() {
-        this.isRecording = false;
-        this.mediaRecorders = {};
-        this.videoChunks = {};
-        this.streams = {};
-        this.sessionId = null;
-        this.recordingStartTime = null;
-        
-        // Video recording constraints
-        this.videoConstraints = {
-            front: {
-                video: {
-                    facingMode: 'user',
-                    width: { ideal: 640 },
-                    height: { ideal: 480 }
-                },
-                audio: true // Include audio for better session documentation
-            },
-            back: {
-                video: {
-                    facingMode: 'environment',
-                    width: { ideal: 1920 },
-                    height: { ideal: 1080 }
-                },
-                audio: true
-            }
-        };
-        
-        console.log('📹 Video Recording Manager initialized');
+  constructor() {
+    this.isRecording = false;
+    this.mediaRecorders = {};
+    this.videoChunks = {};
+    this.streams = {};
+    this.sessionId = null;
+    this.recordingStartTime = null;
+
+    // Video recording constraints
+    this.videoConstraints = {
+      front: {
+        video: {
+          facingMode: "user",
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+        },
+        audio: true, // Include audio for better session documentation
+      },
+      back: {
+        video: {
+          facingMode: "environment",
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
+        audio: true,
+      },
+    };
+
+    console.log("📹 Video Recording Manager initialized");
+  }
+
+  /**
+   * Initialize video recording session
+   */
+  async initializeSession(sessionId) {
+    this.sessionId = sessionId;
+
+    try {
+      // Notify server about video recording session start
+      const response = await fetch("/start_video_recording", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ session_id: sessionId }),
+      });
+
+      if (response.ok) {
+        console.log(`✅ Video recording session initialized: ${sessionId}`);
+        return true;
+      } else {
+        console.error("❌ Failed to initialize video recording session");
+        return false;
+      }
+    } catch (error) {
+      console.error("❌ Error initializing video recording session:", error);
+      return false;
     }
-    
-    /**
-     * Initialize video recording session
-     */
-    async initializeSession(sessionId) {
-        this.sessionId = sessionId;
-        
-        try {
-            // Notify server about video recording session start
-            const response = await fetch('/start_video_recording', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ session_id: sessionId })
-            });
-            
-            if (response.ok) {
-                console.log(`✅ Video recording session initialized: ${sessionId}`);
-                return true;
-            } else {
-                console.error('❌ Failed to initialize video recording session');
-                return false;
-            }
-        } catch (error) {
-            console.error('❌ Error initializing video recording session:', error);
-            return false;
-        }
+  }
+
+  /**
+   * Start recording from available cameras
+   */
+  async startRecording() {
+    if (this.isRecording) {
+      console.log("⚠️ Recording already in progress");
+      return;
     }
-    
-    /**
-     * Start recording from available cameras
-     */
-    async startRecording() {
-        if (this.isRecording) {
-            console.log('⚠️ Recording already in progress');
-            return;
-        }
-        
-        this.recordingStartTime = Date.now();
-        console.log('🎬 Starting video recording...');
-        
-        // Try to start recording from available cameras
-        // Skip front camera if we're on face verification page to avoid conflicts
-        const isFaceVerificationPage = window.location.pathname.includes('face_verification');
-        const cameraTypes = isFaceVerificationPage ? ['back'] : ['front', 'back'];
-        
-        console.log(`🎥 Starting recording for cameras: ${cameraTypes.join(', ')} ${isFaceVerificationPage ? '(front camera reserved for face verification)' : ''}`);
-        
-        for (const cameraType of cameraTypes) {
-            try {
-                await this.startCameraRecording(cameraType);
-            } catch (error) {
-                console.warn(`⚠️ Could not start ${cameraType} camera recording:`, error.message);
-                // Continue with other cameras even if one fails
-            }
-        }
-        
-        // Check if at least one camera started recording
-        const activeRecordings = Object.keys(this.mediaRecorders).length;
-        if (activeRecordings > 0) {
-            this.isRecording = true;
-            console.log(`✅ Video recording started with ${activeRecordings} camera(s)`);
-            this.showRecordingIndicator();
-        } else {
-            console.error('❌ Failed to start recording from any camera');
-            throw new Error('Could not access any cameras for recording');
-        }
+
+    this.recordingStartTime = Date.now();
+    console.log("🎬 Starting video recording...");
+
+    // Try to start recording from available cameras
+    // Skip front camera if we're on face verification page to avoid conflicts
+    const isFaceVerificationPage =
+      window.location.pathname.includes("face_verification");
+    const cameraTypes = isFaceVerificationPage ? ["back"] : ["front", "back"];
+
+    console.log(
+      `🎥 Starting recording for cameras: ${cameraTypes.join(", ")} ${
+        isFaceVerificationPage
+          ? "(front camera reserved for face verification)"
+          : ""
+      }`
+    );
+
+    for (const cameraType of cameraTypes) {
+      try {
+        await this.startCameraRecording(cameraType);
+      } catch (error) {
+        console.warn(
+          `⚠️ Could not start ${cameraType} camera recording:`,
+          error.message
+        );
+        // Continue with other cameras even if one fails
+      }
     }
-    
-    /**
-     * Start recording from a specific camera
-     */
-    async startCameraRecording(cameraType) {
-        try {
-            // Get media stream
-            const stream = await navigator.mediaDevices.getUserMedia(this.videoConstraints[cameraType]);
-            this.streams[cameraType] = stream;
-            
-            // Check if MediaRecorder is supported
-            if (!MediaRecorder.isTypeSupported('video/mp4')) {
-                // Fallback to webm if mp4 not supported
-                if (!MediaRecorder.isTypeSupported('video/webm')) {
-                    throw new Error('Video recording not supported in this browser');
-                }
-            }
-            
-            // Create MediaRecorder with MP4 preference
-            let mimeType = 'video/mp4';
-            let fileExtension = 'mp4';
-            
-            if (!MediaRecorder.isTypeSupported('video/mp4')) {
-                mimeType = 'video/webm;codecs=vp9';
-                fileExtension = 'webm';
-            }
-            
-            const mediaRecorder = new MediaRecorder(stream, {
-                mimeType: mimeType,
-                videoBitsPerSecond: cameraType === 'front' ? 1000000 : 2500000 // Lower bitrate for front camera
-            });
-            
-            this.videoChunks[cameraType] = [];
-            this.videoExtension = fileExtension;
-            
-            // Set up event handlers
-            mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) {
-                    this.videoChunks[cameraType].push(event.data);
-                }
-            };
-            
-            mediaRecorder.onstop = () => {
-                console.log(`📹 ${cameraType} camera recording stopped`);
-                // Only upload final video when entire session stops, not individual cameras
-                console.log(`⏸️ ${cameraType} camera stopped - final upload will happen when session ends`);
-            };
-            
-            mediaRecorder.onerror = (event) => {
-                console.error(`❌ MediaRecorder error for ${cameraType} camera:`, event.error);
-            };
-            
-            // Start recording
-            mediaRecorder.start(1000); // Collect data every second
-            this.mediaRecorders[cameraType] = mediaRecorder;
-            
-            console.log(`📹 ${cameraType} camera recording started`);
-            
-        } catch (error) {
-            // If we can't access a camera, don't fail completely
-            console.warn(`⚠️ Could not access ${cameraType} camera for recording:`, error.message);
-            
-            // Special handling for camera conflicts
-            if (error.name === 'NotAllowedError') {
-                console.warn(`Camera permission denied for ${cameraType} camera`);
-            } else if (error.name === 'NotReadableError' || error.name === 'AbortError') {
-                console.warn(`Camera already in use or hardware error for ${cameraType} camera`);
-            }
-            
-            throw error;
-        }
+
+    // Check if at least one camera started recording
+    const activeRecordings = Object.keys(this.mediaRecorders).length;
+    if (activeRecordings > 0) {
+      this.isRecording = true;
+      console.log(
+        `✅ Video recording started with ${activeRecordings} camera(s)`
+      );
+      this.showRecordingIndicator();
+    } else {
+      console.error("❌ Failed to start recording from any camera");
+      throw new Error("Could not access any cameras for recording");
     }
-    
-    /**
-     * Stop all video recordings
-     */
-    stopRecording() {
-        if (!this.isRecording) {
-            console.log('⚠️ No active recording to stop');
-            return;
+  }
+
+  /**
+   * Start recording from a specific camera
+   */
+  async startCameraRecording(cameraType) {
+    try {
+      // Get media stream
+      const stream = await navigator.mediaDevices.getUserMedia(
+        this.videoConstraints[cameraType]
+      );
+      this.streams[cameraType] = stream;
+
+      // Check if MediaRecorder is supported
+      if (!MediaRecorder.isTypeSupported("video/mp4")) {
+        // Fallback to webm if mp4 not supported
+        if (!MediaRecorder.isTypeSupported("video/webm")) {
+          throw new Error("Video recording not supported in this browser");
         }
-        
-        console.log('🛑 Stopping video recording...');
-        
-        // Stop all media recorders
-        Object.keys(this.mediaRecorders).forEach(cameraType => {
-            const mediaRecorder = this.mediaRecorders[cameraType];
-            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-                mediaRecorder.stop();
-            }
+      }
+
+      // Create MediaRecorder with MP4 preference
+      let mimeType = "video/mp4";
+      let fileExtension = "mp4";
+
+      if (!MediaRecorder.isTypeSupported("video/mp4")) {
+        mimeType = "video/webm;codecs=vp9";
+        fileExtension = "webm";
+      }
+
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: mimeType,
+        videoBitsPerSecond: cameraType === "front" ? 1000000 : 2500000, // Lower bitrate for front camera
+      });
+
+      this.videoChunks[cameraType] = [];
+      this.videoExtension = fileExtension;
+
+      // Set up event handlers
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          this.videoChunks[cameraType].push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        console.log(`📹 ${cameraType} camera recording stopped`);
+        // Only upload final video when entire session stops, not individual cameras
+        console.log(
+          `⏸️ ${cameraType} camera stopped - final upload will happen when session ends`
+        );
+      };
+
+      mediaRecorder.onerror = (event) => {
+        console.error(
+          `❌ MediaRecorder error for ${cameraType} camera:`,
+          event.error
+        );
+      };
+
+      // Start recording
+      mediaRecorder.start(1000); // Collect data every second
+      this.mediaRecorders[cameraType] = mediaRecorder;
+
+      console.log(`📹 ${cameraType} camera recording started`);
+    } catch (error) {
+      // If we can't access a camera, don't fail completely
+      console.warn(
+        `⚠️ Could not access ${cameraType} camera for recording:`,
+        error.message
+      );
+
+      // Special handling for camera conflicts
+      if (error.name === "NotAllowedError") {
+        console.warn(`Camera permission denied for ${cameraType} camera`);
+      } else if (
+        error.name === "NotReadableError" ||
+        error.name === "AbortError"
+      ) {
+        console.warn(
+          `Camera already in use or hardware error for ${cameraType} camera`
+        );
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * Stop all video recordings with enhanced cleanup
+   */
+  stopRecording() {
+    if (!this.isRecording) {
+      console.log("⚠️ No active recording to stop");
+      return Promise.resolve();
+    }
+
+    console.log("🛑 Stopping video recording with enhanced cleanup...");
+
+    // Create promises to track when each recorder actually stops
+    const stopPromises = [];
+
+    // Stop all media recorders and wait for them to finish
+    Object.keys(this.mediaRecorders).forEach((cameraType) => {
+      const mediaRecorder = this.mediaRecorders[cameraType];
+      if (mediaRecorder && mediaRecorder.state !== "inactive") {
+        console.log(`🛑 Stopping ${cameraType} camera recorder...`);
+
+        const stopPromise = new Promise((resolve) => {
+          if (mediaRecorder.state === "inactive") {
+            resolve();
+          } else {
+            mediaRecorder.addEventListener(
+              "stop",
+              () => {
+                console.log(`✅ ${cameraType} recorder stopped`);
+                resolve();
+              },
+              { once: true }
+            );
+
+            // Fallback timeout
+            setTimeout(() => {
+              console.log(
+                `⏰ ${cameraType} recorder stop timeout - forcing resolution`
+              );
+              resolve();
+            }, 2000);
+
+            mediaRecorder.stop();
+          }
         });
-        
-        // Stop all streams
-        Object.keys(this.streams).forEach(cameraType => {
-            const stream = this.streams[cameraType];
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-            }
-        });
-        
-        this.isRecording = false;
-        this.hideRecordingIndicator();
-        
-        const recordingDuration = (Date.now() - this.recordingStartTime) / 1000;
-        console.log(`✅ Recording stopped after ${recordingDuration.toFixed(1)} seconds`);
-        
-        // Final video upload is now handled by "Complete KYC" button
-        console.log('ℹ️ Video recording stopped - final upload handled by Complete KYC button');
-    }
-    
-    /**
-     * Upload recorded video to server
-     */
-    async uploadVideo(cameraType) {
-        if (!this.videoChunks[cameraType] || this.videoChunks[cameraType].length === 0) {
-            console.warn(`⚠️ No video data to upload for ${cameraType} camera`);
-            return;
+
+        stopPromises.push(stopPromise);
+      }
+    });
+
+    // Return promise that resolves when all cleanup is complete
+    return Promise.all(stopPromises).then(() => {
+      // Stop all streams after recorders have stopped
+      Object.keys(this.streams).forEach((cameraType) => {
+        const stream = this.streams[cameraType];
+        if (stream) {
+          console.log(`🎥 Releasing ${cameraType} camera stream...`);
+          stream.getTracks().forEach((track) => {
+            track.stop();
+            console.log(`✋ Stopped ${track.kind} track for ${cameraType}`);
+          });
         }
-        
-        try {
-            // Create video blob with correct MIME type
-            const mimeType = this.videoExtension === 'mp4' ? 'video/mp4' : 'video/webm';
-            const videoBlob = new Blob(this.videoChunks[cameraType], { type: mimeType });
-            
-            console.log(`📤 Uploading ${cameraType} camera video (${(videoBlob.size / 1024 / 1024).toFixed(2)} MB)...`);
-            
-            // Create form data
-            const formData = new FormData();
-            formData.append('video', videoBlob, `session_${cameraType}_camera.${this.videoExtension}`);
-            formData.append('session_id', this.sessionId);
-            formData.append('camera_type', `${cameraType}_camera`);
-            
-            // Upload to server
-            const response = await fetch('/upload_video', {
-                method: 'POST',
-                body: formData
-            });
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                console.log(`✅ ${cameraType} camera video uploaded successfully: ${result.s3_key}`);
+      });
+
+      // Clear all references
+      this.mediaRecorders = {};
+      this.streams = {};
+      this.isRecording = false;
+      this.hideRecordingIndicator();
+
+      const recordingDuration = (Date.now() - this.recordingStartTime) / 1000;
+      console.log(
+        `✅ Recording stopped and cleaned up after ${recordingDuration.toFixed(
+          1
+        )} seconds`
+      );
+
+      console.log(
+        "ℹ️ Video recording stopped - final upload handled by Complete KYC button"
+      );
+    });
+  }
+
+  /**
+   * Force immediate cleanup of all camera resources (for face verification)
+   */
+  async forceCleanupForFaceVerification() {
+    console.log("🚨 Force cleanup for face verification initiated...");
+
+    // Immediately mark as not recording
+    this.isRecording = false;
+
+    // Force stop all MediaRecorder instances immediately
+    const recorderStopPromises = [];
+    if (this.mediaRecorders) {
+      for (const cameraType of Object.keys(this.mediaRecorders)) {
+        const recorder = this.mediaRecorders[cameraType];
+        if (recorder && recorder.state !== "inactive") {
+          console.log(`🛑 Force stopping ${cameraType} MediaRecorder...`);
+
+          const stopPromise = new Promise((resolve) => {
+            if (recorder.state === "inactive") {
+              resolve();
             } else {
-                console.error(`❌ Failed to upload ${cameraType} camera video:`, result.error);
+              recorder.addEventListener("stop", resolve, { once: true });
+              // Shorter timeout for force cleanup
+              setTimeout(resolve, 500);
             }
-            
-        } catch (error) {
-            console.error(`❌ Error uploading ${cameraType} camera video:`, error);
+          });
+
+          recorderStopPromises.push(stopPromise);
+          recorder.stop();
         }
+      }
     }
-    
-    /**
-     * Show recording indicator
-     */
-    showRecordingIndicator() {
-        // Remove existing indicator if present
-        this.hideRecordingIndicator();
-        
-        // Create recording indicator
-        const indicator = document.createElement('div');
-        indicator.id = 'recording-indicator';
-        indicator.innerHTML = `
+
+    // Wait for all recorders to stop
+    await Promise.all(recorderStopPromises);
+    console.log("✅ All MediaRecorders force stopped");
+
+    // Force stop all camera streams with verification
+    if (this.streams) {
+      for (const cameraType of Object.keys(this.streams)) {
+        const stream = this.streams[cameraType];
+        if (stream) {
+          console.log(`🎥 Force releasing ${cameraType} camera stream...`);
+          const tracks = stream.getTracks();
+
+          for (const track of tracks) {
+            if (track.readyState !== "ended") {
+              track.stop();
+              console.log(
+                `✋ Force stopped ${track.kind} track for ${cameraType}`
+              );
+
+              // Verify track actually ends
+              let attempts = 0;
+              while (track.readyState !== "ended" && attempts < 20) {
+                await new Promise((resolve) => setTimeout(resolve, 50));
+                attempts++;
+              }
+
+              if (track.readyState === "ended") {
+                console.log(
+                  `✅ ${track.kind} track for ${cameraType} confirmed ended`
+                );
+              } else {
+                console.warn(
+                  `⚠️ ${track.kind} track for ${cameraType} may not have ended cleanly`
+                );
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Clear all intervals
+    if (this.autoSaveInterval) {
+      clearInterval(this.autoSaveInterval);
+      this.autoSaveInterval = null;
+    }
+    if (this.backupSaveInterval) {
+      clearInterval(this.backupSaveInterval);
+      this.backupSaveInterval = null;
+    }
+
+    // Clear all references
+    this.mediaRecorders = {};
+    this.streams = {};
+    this.hideRecordingIndicator();
+
+    console.log("🧹 Force cleanup completed - all camera resources released");
+
+    // Extra wait to ensure browser releases resources
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    return true;
+  }
+
+  /**
+   * Upload recorded video to server
+   */
+  async uploadVideo(cameraType) {
+    if (
+      !this.videoChunks[cameraType] ||
+      this.videoChunks[cameraType].length === 0
+    ) {
+      console.warn(`⚠️ No video data to upload for ${cameraType} camera`);
+      return;
+    }
+
+    try {
+      // Create video blob with correct MIME type
+      const mimeType =
+        this.videoExtension === "mp4" ? "video/mp4" : "video/webm";
+      const videoBlob = new Blob(this.videoChunks[cameraType], {
+        type: mimeType,
+      });
+
+      console.log(
+        `📤 Uploading ${cameraType} camera video (${(
+          videoBlob.size /
+          1024 /
+          1024
+        ).toFixed(2)} MB)...`
+      );
+
+      // Create form data
+      const formData = new FormData();
+      formData.append(
+        "video",
+        videoBlob,
+        `session_${cameraType}_camera.${this.videoExtension}`
+      );
+      formData.append("session_id", this.sessionId);
+      formData.append("camera_type", `${cameraType}_camera`);
+
+      // Upload to server
+      const response = await fetch("/upload_video", {
+        method: "POST",
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        console.log(
+          `✅ ${cameraType} camera video uploaded successfully: ${result.s3_key}`
+        );
+      } else {
+        console.error(
+          `❌ Failed to upload ${cameraType} camera video:`,
+          result.error
+        );
+      }
+    } catch (error) {
+      console.error(`❌ Error uploading ${cameraType} camera video:`, error);
+    }
+  }
+
+  /**
+   * Show recording indicator
+   */
+  showRecordingIndicator() {
+    // Remove existing indicator if present
+    this.hideRecordingIndicator();
+
+    // Create recording indicator
+    const indicator = document.createElement("div");
+    indicator.id = "recording-indicator";
+    indicator.innerHTML = `
             <div style="
                 position: fixed;
                 top: 20px;
@@ -299,136 +487,158 @@ class VideoRecordingManager {
                 }
             </style>
         `;
-        
-        document.body.appendChild(indicator);
+
+    document.body.appendChild(indicator);
+  }
+
+  /**
+   * Hide recording indicator
+   */
+  hideRecordingIndicator() {
+    const indicator = document.getElementById("recording-indicator");
+    if (indicator) {
+      indicator.remove();
     }
-    
-    /**
-     * Hide recording indicator
-     */
-    hideRecordingIndicator() {
-        const indicator = document.getElementById('recording-indicator');
-        if (indicator) {
-            indicator.remove();
+  }
+
+  /**
+   * Get recording status
+   */
+  getStatus() {
+    return {
+      isRecording: this.isRecording,
+      sessionId: this.sessionId,
+      activeCameras: Object.keys(this.mediaRecorders),
+      recordingDuration: this.recordingStartTime
+        ? (Date.now() - this.recordingStartTime) / 1000
+        : 0,
+    };
+  }
+
+  /**
+   * Clean up resources
+   */
+  cleanup() {
+    this.stopRecording();
+    this.mediaRecorders = {};
+    this.videoChunks = {};
+    this.streams = {};
+    console.log("🧹 Video recording manager cleaned up");
+  }
+
+  /**
+   * Get available camera stream for sharing (useful for face verification)
+   */
+  getSharedCameraStream(cameraType = "front") {
+    if (this.streams[cameraType]) {
+      return this.streams[cameraType];
+    }
+    return null;
+  }
+
+  /**
+   * Check if specific camera is being used for recording
+   */
+  isCameraRecording(cameraType) {
+    return (
+      this.mediaRecorders[cameraType] &&
+      this.mediaRecorders[cameraType].state === "recording"
+    );
+  }
+
+  /**
+   * Upload the final consolidated video to S3 when recording session ends
+   */
+  async uploadFinalVideoToS3() {
+    if (!this.sessionId || !this.videoChunks) {
+      console.log("⚠️ No session data or video chunks to upload");
+      return;
+    }
+
+    console.log("☁️ Uploading final consolidated video to S3...");
+
+    // Find the camera type with the most video data (likely front camera)
+    let bestCameraType = null;
+    let maxSize = 0;
+
+    Object.keys(this.videoChunks).forEach((cameraType) => {
+      if (
+        this.videoChunks[cameraType] &&
+        this.videoChunks[cameraType].length > 0
+      ) {
+        const totalSize = this.videoChunks[cameraType].reduce(
+          (sum, chunk) => sum + chunk.size,
+          0
+        );
+        if (totalSize > maxSize) {
+          maxSize = totalSize;
+          bestCameraType = cameraType;
         }
+      }
+    });
+
+    if (!bestCameraType || maxSize === 0) {
+      console.log("⚠️ No video data found to upload to S3");
+      return;
     }
-    
-    /**
-     * Get recording status
-     */
-    getStatus() {
-        return {
-            isRecording: this.isRecording,
-            sessionId: this.sessionId,
-            activeCameras: Object.keys(this.mediaRecorders),
-            recordingDuration: this.recordingStartTime ? (Date.now() - this.recordingStartTime) / 1000 : 0
-        };
-    }
-    
-    /**
-     * Clean up resources
-     */
-    cleanup() {
-        this.stopRecording();
-        this.mediaRecorders = {};
+
+    try {
+      // Create final video blob from the best camera
+      const mimeType =
+        this.videoExtension === "mp4" ? "video/mp4" : "video/webm";
+      const finalVideoBlob = new Blob(this.videoChunks[bestCameraType], {
+        type: mimeType,
+      });
+
+      console.log(
+        `📤 Uploading final ${bestCameraType} camera video to S3 (${(
+          finalVideoBlob.size /
+          1024 /
+          1024
+        ).toFixed(2)} MB)...`
+      );
+
+      // Create form data for final upload
+      const formData = new FormData();
+      formData.append(
+        "video",
+        finalVideoBlob,
+        `final_session_${this.sessionId}.${this.videoExtension}`
+      );
+      formData.append("session_id", this.sessionId);
+      formData.append("camera_type", "final_session");
+
+      // Upload final video to S3
+      const response = await fetch("/upload_video", {
+        method: "POST",
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        console.log(`✅ Final session video uploaded to S3: ${result.s3_key}`);
+
+        // Clean up local video chunks after successful S3 upload
         this.videoChunks = {};
-        this.streams = {};
-        console.log('🧹 Video recording manager cleaned up');
+        console.log("🧹 Local video chunks cleaned up after S3 upload");
+      } else {
+        console.error(`❌ Failed to upload final video to S3:`, result.error);
+      }
+    } catch (error) {
+      console.error(`❌ Error uploading final video to S3:`, error);
     }
-
-    /**
-     * Get available camera stream for sharing (useful for face verification)
-     */
-    getSharedCameraStream(cameraType = 'front') {
-        if (this.streams[cameraType]) {
-            return this.streams[cameraType];
-        }
-        return null;
-    }
-    
-    /**
-     * Check if specific camera is being used for recording
-     */
-    isCameraRecording(cameraType) {
-        return this.mediaRecorders[cameraType] && this.mediaRecorders[cameraType].state === 'recording';
-    }
-
-    /**
-     * Upload the final consolidated video to S3 when recording session ends
-     */
-    async uploadFinalVideoToS3() {
-        if (!this.sessionId || !this.videoChunks) {
-            console.log('⚠️ No session data or video chunks to upload');
-            return;
-        }
-
-        console.log('☁️ Uploading final consolidated video to S3...');
-
-        // Find the camera type with the most video data (likely front camera)
-        let bestCameraType = null;
-        let maxSize = 0;
-
-        Object.keys(this.videoChunks).forEach(cameraType => {
-            if (this.videoChunks[cameraType] && this.videoChunks[cameraType].length > 0) {
-                const totalSize = this.videoChunks[cameraType].reduce((sum, chunk) => sum + chunk.size, 0);
-                if (totalSize > maxSize) {
-                    maxSize = totalSize;
-                    bestCameraType = cameraType;
-                }
-            }
-        });
-
-        if (!bestCameraType || maxSize === 0) {
-            console.log('⚠️ No video data found to upload to S3');
-            return;
-        }
-
-        try {
-            // Create final video blob from the best camera
-            const mimeType = this.videoExtension === 'mp4' ? 'video/mp4' : 'video/webm';
-            const finalVideoBlob = new Blob(this.videoChunks[bestCameraType], { type: mimeType });
-
-            console.log(`📤 Uploading final ${bestCameraType} camera video to S3 (${(finalVideoBlob.size / 1024 / 1024).toFixed(2)} MB)...`);
-
-            // Create form data for final upload
-            const formData = new FormData();
-            formData.append('video', finalVideoBlob, `final_session_${this.sessionId}.${this.videoExtension}`);
-            formData.append('session_id', this.sessionId);
-            formData.append('camera_type', 'final_session');
-
-            // Upload final video to S3
-            const response = await fetch('/upload_video', {
-                method: 'POST',
-                body: formData
-            });
-
-            const result = await response.json();
-
-            if (result.success) {
-                console.log(`✅ Final session video uploaded to S3: ${result.s3_key}`);
-                
-                // Clean up local video chunks after successful S3 upload
-                this.videoChunks = {};
-                console.log('🧹 Local video chunks cleaned up after S3 upload');
-                
-            } else {
-                console.error(`❌ Failed to upload final video to S3:`, result.error);
-            }
-
-        } catch (error) {
-            console.error(`❌ Error uploading final video to S3:`, error);
-        }
-    }
+  }
 }
 
 // Global video recording manager instance
 window.videoRecordingManager = new VideoRecordingManager();
 
 // Auto-cleanup on page unload
-window.addEventListener('beforeunload', () => {
-    if (window.videoRecordingManager) {
-        window.videoRecordingManager.stopRecording();
-    }
+window.addEventListener("beforeunload", () => {
+  if (window.videoRecordingManager) {
+    window.videoRecordingManager.stopRecording();
+  }
 });
 
-console.log('📹 Video Recording Manager module loaded'); 
+console.log("📹 Video Recording Manager module loaded");

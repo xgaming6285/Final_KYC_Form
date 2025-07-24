@@ -1,156 +1,168 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Face Verification</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            line-height: 1.6;
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        line-height: 1.6;
+      }
+      h1,
+      h2 {
+        color: #333;
+        text-align: center;
+      }
+      .camera-container {
+        margin: 20px 0;
+        text-align: center;
+        position: relative;
+      }
+      #video {
+        width: 100%;
+        max-width: 640px;
+        height: auto;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        background-color: #f9f9f9;
+      }
+      #canvas {
+        display: none;
+      }
+      #overlay-canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        max-width: 640px;
+        height: auto;
+        z-index: 10;
+        pointer-events: none;
+      }
+      .controls {
+        margin: 20px 0;
+        text-align: center;
+      }
+      .btn {
+        display: inline-block;
+        background-color: #4caf50;
+        color: white;
+        padding: 12px 20px;
+        text-align: center;
+        text-decoration: none;
+        font-size: 16px;
+        border-radius: 4px;
+        border: none;
+        cursor: pointer;
+        margin: 5px;
+      }
+      .btn:hover {
+        background-color: #45a049;
+      }
+      .btn-disabled {
+        background-color: #cccccc;
+        cursor: not-allowed;
+      }
+      #status-message {
+        background-color: #e7f3fe;
+        color: #0d47a1;
+        padding: 12px;
+        border-radius: 5px;
+        margin: 10px 0;
+        text-align: center;
+        font-weight: bold;
+      }
+      /* Removed comparison-container CSS since comparison elements are no longer used */
+      .back-link {
+        display: block;
+        margin-top: 20px;
+        text-align: center;
+      }
+      #result-container {
+        margin-top: 20px;
+        padding: 15px;
+        border-radius: 5px;
+        display: none;
+        text-align: center;
+      }
+      .success-result {
+        background-color: #e7f9e7;
+        color: #2e7d32;
+        border: 1px solid #a5d6a7;
+      }
+      .failure-result {
+        background-color: #ffebee;
+        color: #c62828;
+        border: 1px solid #ef9a9a;
+      }
+      .help-text {
+        background-color: #fff3e0;
+        padding: 10px;
+        border-radius: 4px;
+        margin: 10px 0;
+        font-size: 0.9em;
+      }
+      #loading-spinner {
+        display: none;
+        text-align: center;
+        margin: 20px 0;
+      }
+      .spinner {
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #3498db;
+        border-radius: 50%;
+        width: 30px;
+        height: 30px;
+        animation: spin 2s linear infinite;
+        margin: 0 auto;
+      }
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
         }
-        h1, h2 {
-            color: #333;
-            text-align: center;
+        100% {
+          transform: rotate(360deg);
         }
-        .camera-container {
-            margin: 20px 0;
-            text-align: center;
-            position: relative;
-        }
-        #video {
-            width: 100%;
-            max-width: 640px;
-            height: auto;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            background-color: #f9f9f9;
-        }
-        #canvas {
-            display: none;
-        }
-        #overlay-canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            max-width: 640px;
-            height: auto;
-            z-index: 10;
-            pointer-events: none;
-        }
-        .controls {
-            margin: 20px 0;
-            text-align: center;
-        }
-        .btn {
-            display: inline-block;
-            background-color: #4CAF50;
-            color: white;
-            padding: 12px 20px;
-            text-align: center;
-            text-decoration: none;
-            font-size: 16px;
-            border-radius: 4px;
-            border: none;
-            cursor: pointer;
-            margin: 5px;
-        }
-        .btn:hover {
-            background-color: #45a049;
-        }
-        .btn-disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
-        }
-        #status-message {
-            background-color: #e7f3fe;
-            color: #0d47a1;
-            padding: 12px;
-            border-radius: 5px;
-            margin: 10px 0;
-            text-align: center;
-            font-weight: bold;
-        }
-        /* Removed comparison-container CSS since comparison elements are no longer used */
-        .back-link {
-            display: block;
-            margin-top: 20px;
-            text-align: center;
-        }
-        #result-container {
-            margin-top: 20px;
-            padding: 15px;
-            border-radius: 5px;
-            display: none;
-            text-align: center;
-        }
-        .success-result {
-            background-color: #e7f9e7;
-            color: #2e7d32;
-            border: 1px solid #a5d6a7;
-        }
-        .failure-result {
-            background-color: #ffebee;
-            color: #c62828;
-            border: 1px solid #ef9a9a;
-        }
-        .help-text {
-            background-color: #fff3e0;
-            padding: 10px;
-            border-radius: 4px;
-            margin: 10px 0;
-            font-size: 0.9em;
-        }
-        #loading-spinner {
-            display: none;
-            text-align: center;
-            margin: 20px 0;
-        }
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            animation: spin 2s linear infinite;
-            margin: 0 auto;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <h1>Face Verification</h1>
-    
-    <div id="status-message">Please look at the camera for face verification</div>
-    
-    <div class="help-text">
-        Position your face within the frame and ensure good lighting. Try to match the angle of your face with your ID photo.
+
+    <div id="status-message">
+      Please look at the camera for face verification
     </div>
-    
+
+    <div class="help-text">
+      Position your face within the frame and ensure good lighting. Try to match
+      the angle of your face with your ID photo.
+    </div>
+
     <div class="camera-container">
-        <video id="video" autoplay playsinline></video>
-        <canvas id="overlay-canvas"></canvas>
-        <canvas id="canvas"></canvas>
+      <video id="video" autoplay playsinline></video>
+      <canvas id="overlay-canvas"></canvas>
+      <canvas id="canvas"></canvas>
     </div>
 
     <div id="loading-spinner">
-        <div class="spinner"></div>
-        <p>Processing... Please wait</p>
+      <div class="spinner"></div>
+      <p>Processing... Please wait</p>
     </div>
-    
+
     <div class="controls">
-        <button id="captureBtn" class="btn">Capture</button>
-        <button id="verifyBtn" class="btn btn-disabled" disabled>Verify Face</button>
+      <button id="captureBtn" class="btn">Capture</button>
+      <button id="verifyBtn" class="btn btn-disabled" disabled>
+        Verify Face
+      </button>
     </div>
-    
-    <div id="video-status" style="
+
+    <div
+      id="video-status"
+      style="
         background-color: #e3f2fd;
         color: #1976d2;
         padding: 8px 15px;
@@ -159,530 +171,763 @@
         text-align: center;
         font-size: 0.9em;
         display: none;
-    ">
-        <span id="video-status-text">Video recording active</span>
-        <span id="video-size" style="margin-left: 10px;"></span>
+      "
+    >
+      <span id="video-status-text">Video recording active</span>
+      <span id="video-size" style="margin-left: 10px"></span>
     </div>
-    
+
     <div id="result-container">
-        <h2 id="result-title">Verification Result</h2>
-        <p id="result-message"></p>
-        <button id="try-again-btn" class="btn">Try Again</button>
-        <button id="complete-btn" class="btn">Complete KYC</button>
+      <h2 id="result-title">Verification Result</h2>
+      <p id="result-message"></p>
+      <button id="try-again-btn" class="btn">Try Again</button>
+      <button id="complete-btn" class="btn">Complete KYC</button>
     </div>
-    
+
     <!-- Removed comparison-container div that showed ID Photo and Your Captured Face -->
-    
+
     <a href="/" class="back-link">Back to Home</a>
-    
+
     <script>
-        // DOM elements
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const overlayCanvas = document.getElementById('overlay-canvas');
-        const captureBtn = document.getElementById('captureBtn');
-        const verifyBtn = document.getElementById('verifyBtn');
-        // saveVideoBtn removed for automatic video saving
-        const statusMessage = document.getElementById('status-message');
-        const resultContainer = document.getElementById('result-container');
-        const resultTitle = document.getElementById('result-title');
-        const resultMessage = document.getElementById('result-message');
-        const tryAgainBtn = document.getElementById('try-again-btn');
-        const completeBtn = document.getElementById('complete-btn');
-        const loadingSpinner = document.getElementById('loading-spinner');
-        const videoStatus = document.getElementById('video-status');
-        const videoStatusText = document.getElementById('video-status-text');
-        const videoSize = document.getElementById('video-size');
-        // Removed references to comparisonContainer, idPhoto, and capturedFace elements
-        
-        // Get session ID from localStorage
-        const sessionId = localStorage.getItem('kyc_session_id');
-        let capturedImageData = null;
-        
-        // Server logging function for mobile debugging
-        async function serverLog(message, level = 'INFO') {
-            try {
-                console.log(`[${level}] ${message}`); // Still log to console if available
-                await fetch('/debug_log', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        message: message,
-                        level: level,
-                        session_id: sessionId || 'no-session'
-                    })
-                });
-            } catch (error) {
-                console.error('Failed to send log to server:', error);
-            }
+      // DOM elements
+      const video = document.getElementById("video");
+      const canvas = document.getElementById("canvas");
+      const overlayCanvas = document.getElementById("overlay-canvas");
+      const captureBtn = document.getElementById("captureBtn");
+      const verifyBtn = document.getElementById("verifyBtn");
+      // saveVideoBtn removed for automatic video saving
+      const statusMessage = document.getElementById("status-message");
+      const resultContainer = document.getElementById("result-container");
+      const resultTitle = document.getElementById("result-title");
+      const resultMessage = document.getElementById("result-message");
+      const tryAgainBtn = document.getElementById("try-again-btn");
+      const completeBtn = document.getElementById("complete-btn");
+      const loadingSpinner = document.getElementById("loading-spinner");
+      const videoStatus = document.getElementById("video-status");
+      const videoStatusText = document.getElementById("video-status-text");
+      const videoSize = document.getElementById("video-size");
+      // Removed references to comparisonContainer, idPhoto, and capturedFace elements
+
+      // Get session ID from localStorage
+      const sessionId = localStorage.getItem("kyc_session_id");
+      let capturedImageData = null;
+
+      // Server logging function for mobile debugging
+      async function serverLog(message, level = "INFO") {
+        try {
+          console.log(`[${level}] ${message}`); // Still log to console if available
+          await fetch("/debug_log", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              message: message,
+              level: level,
+              session_id: sessionId || "no-session",
+            }),
+          });
+        } catch (error) {
+          console.error("Failed to send log to server:", error);
         }
-        
-        // Camera cleanup function to resolve conflicts - optimized for speed
-        async function cleanupExistingCameras() {
-            try {
-                await serverLog('🧹 Cleaning up existing camera streams...');
-                
-                // Stop any existing video streams quickly
-                if (video.srcObject) {
-                    const tracks = video.srcObject.getTracks();
-                    tracks.forEach(track => {
-                        track.stop();
-                        serverLog(`🛑 Stopped video track: ${track.kind}`);
-                    });
-                    video.srcObject = null;
-                }
-                
-                // Minimal wait for cleanup - just enough for resources to release
-                await new Promise(resolve => setTimeout(resolve, 100));
-                await serverLog('✅ Camera cleanup completed');
-                
-            } catch (error) {
-                await serverLog(`⚠️ Camera cleanup error: ${error.message}`, 'WARN');
-            }
+      }
+
+      // Camera cleanup function to resolve conflicts - more aggressive approach
+      async function cleanupExistingCameras() {
+        try {
+          await serverLog("🧹 Starting aggressive camera cleanup...");
+
+          // Stop any existing video streams on the page
+          if (video.srcObject) {
+            const tracks = video.srcObject.getTracks();
+            tracks.forEach((track) => {
+              track.stop();
+              serverLog(`🛑 Stopped video track: ${track.kind}`);
+            });
+            video.srcObject = null;
+          }
+
+          // Force garbage collection if available
+          if (window.gc) {
+            window.gc();
+            await serverLog("🗑️ Forced garbage collection");
+          }
+
+          // Enumerate devices to force browser to refresh camera states
+          try {
+            await navigator.mediaDevices.enumerateDevices();
+            await serverLog("📋 Device enumeration completed");
+          } catch (enumError) {
+            await serverLog(
+              `⚠️ Device enumeration failed: ${enumError.message}`,
+              "WARN"
+            );
+          }
+
+          // Longer wait for cleanup - cameras need time to be fully released
+          await new Promise((resolve) => setTimeout(resolve, 2500));
+          await serverLog("✅ Extended camera cleanup completed");
+        } catch (error) {
+          await serverLog(`⚠️ Camera cleanup error: ${error.message}`, "WARN");
         }
-        
-        // Initialize camera with instant startup - no unnecessary delays
-        async function initCamera() {
-            try {
-                await serverLog('🎥 Initializing camera for face verification...');
-                
-                // Quick cleanup of existing streams (no delays)
-                await cleanupExistingCameras();
-                
-                // Aggressively stop all video recording to release ALL cameras
-                if (window.videoRecordingManager) {
-                    await serverLog('🛑 Aggressively stopping all video recording...');
-                    
-                    // Stop recording immediately
-                    if (window.videoRecordingManager.isRecording) {
-                        window.videoRecordingManager.stopRecording();
-                    }
-                    
-                    // Force stop ALL MediaRecorder instances
-                    if (window.videoRecordingManager.mediaRecorders) {
-                        for (const cameraType of Object.keys(window.videoRecordingManager.mediaRecorders)) {
-                            const recorder = window.videoRecordingManager.mediaRecorders[cameraType];
-                            if (recorder && recorder.state !== 'inactive') {
-                                await serverLog(`🛑 Force stopping ${cameraType} MediaRecorder...`);
-                                recorder.stop();
-                            }
-                        }
-                        window.videoRecordingManager.mediaRecorders = {};
-                    }
-                    
-                    // Force stop ALL camera streams
-                    if (window.videoRecordingManager.streams) {
-                        for (const cameraType of Object.keys(window.videoRecordingManager.streams)) {
-                            const stream = window.videoRecordingManager.streams[cameraType];
-                            if (stream) {
-                                await serverLog(`🎥 Force releasing ${cameraType} camera stream...`);
-                                for (const track of stream.getTracks()) {
-                                    track.stop();
-                                    await serverLog(`✋ Stopped ${track.kind} track for ${cameraType}`);
-                                }
-                            }
-                        }
-                        window.videoRecordingManager.streams = {};
-                    }
-                    
-                    // Clear all intervals
-                    if (window.videoRecordingManager.autoSaveInterval) {
-                        clearInterval(window.videoRecordingManager.autoSaveInterval);
-                        window.videoRecordingManager.autoSaveInterval = null;
-                    }
-                    if (window.videoRecordingManager.backupSaveInterval) {
-                        clearInterval(window.videoRecordingManager.backupSaveInterval);
-                        window.videoRecordingManager.backupSaveInterval = null;
-                    }
-                    
-                    // Reset recording state
-                    window.videoRecordingManager.isRecording = false;
-                    
-                    await serverLog('✅ All video recording resources forcefully released');
-                    
-                    // Wait longer for all browser resources to be fully released
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                }
-                
-                // First enumerate devices to help resolve conflicts
-                await serverLog('📷 Enumerating media devices...');
-                try {
-                    const devices = await navigator.mediaDevices.enumerateDevices();
-                    const cameras = devices.filter(device => device.kind === 'videoinput');
-                    await serverLog(`📹 Found ${cameras.length} camera(s) available`);
-                    if (cameras.length === 0) {
-                        throw new Error('No cameras found on this device');
-                    }
-                } catch (enumError) {
-                    await serverLog(`⚠️ Device enumeration warning: ${enumError.message}`, 'WARN');
-                }
-                
-                // Try multiple camera configurations for maximum compatibility
-                await serverLog('📷 Accessing camera with fallback configurations...');
-                
-                const cameraConfigs = [
-                    // Config 1 - Most basic (fastest)
-                    {
-                        video: true
-                    },
-                    // Config 2 - Front camera minimal
-                    {
-                        video: {
-                            facingMode: 'user'
-                        }
-                    },
-                    // Config 3 - Front camera with constraints
-                    {
-                        video: {
-                            facingMode: 'user',
-                            width: { ideal: 640, min: 320 },
-                            height: { ideal: 480, min: 240 }
-                        }
-                    }
-                ];
-                
-                let stream = null;
-                let configUsed = 0;
-                
-                for (let i = 0; i < cameraConfigs.length && !stream; i++) {
-                    try {
-                        await serverLog(`📷 Trying camera config ${i + 1}/${cameraConfigs.length}...`);
-                        stream = await Promise.race([
-                            navigator.mediaDevices.getUserMedia(cameraConfigs[i]),
-                            new Promise((_, reject) => 
-                                setTimeout(() => reject(new Error('Camera access timeout')), 1500) // Faster timeout
-                            )
-                        ]);
-                                                 configUsed = i + 1;
-                         await serverLog(`✅ Camera accessed successfully with config ${configUsed}`);
-                         break;
-                                         } catch (error) {
-                        await serverLog(`⚠️ Config ${i + 1} failed: ${error.name || 'Unknown'} - ${error.message}`, 'WARN');
-                        
-                        // Special handling for specific camera errors
-                        if (error.name === 'NotReadableError' || error.message.includes('in use')) {
-                            await serverLog('🔄 Camera in use - waiting 2s before next attempt...', 'WARN');
-                            await new Promise(resolve => setTimeout(resolve, 2000)); // Extra wait for "in use" errors
-                        } else if (error.name === 'OverconstrainedError') {
-                            await serverLog('🔧 Camera constraints too strict - trying simpler config...', 'WARN');
-                        }
-                        
-                        if (i === cameraConfigs.length - 1) {
-                            throw error; // Throw the last error if all configs fail
-                        }
-                    }
-                 }
-                
-                if (!stream) {
-                    throw new Error('Could not access camera - no stream available');
-                }
-                
-                video.srcObject = stream;
-                
-                // Start video playback immediately
-                return new Promise((resolve, reject) => {
-                    const timeoutId = setTimeout(() => {
-                        serverLog('❌ Video playback timeout', 'ERROR');
-                        reject(new Error('Video playback timeout'));
-                    }, 8000); // Reasonable timeout for video to start
-                    
-                    video.onloadedmetadata = () => {
-                        serverLog('📹 Video metadata loaded, starting playback...');
-                        video.play().then(() => {
-                            serverLog('✅ Camera ready for face verification');
-                            clearTimeout(timeoutId);
-                            overlayCanvas.width = video.videoWidth;
-                            overlayCanvas.height = video.videoHeight;
-                            drawFaceOverlay();
-                            statusMessage.textContent = "Camera ready. Position your face in the circle and click 'Capture'";
-                            statusMessage.style.backgroundColor = "#e8f5e8";
-                            statusMessage.style.color = "#2e7d32";
-                            resolve();
-                        }).catch((playError) => {
-                            serverLog(`❌ Video playback failed: ${playError.message}`, 'ERROR');
-                            clearTimeout(timeoutId);
-                            reject(playError);
-                        });
-                    };
-                    
-                    video.onerror = (error) => {
-                        serverLog(`❌ Video element error: ${error}`, 'ERROR');
-                        clearTimeout(timeoutId);
-                        reject(new Error('Video playback failed'));
-                    };
-                });
-                
-            } catch (err) {
-                await serverLog(`❌ Camera initialization failed: ${err.message}`, 'ERROR');
-                
-                // Provide specific error messages
-                let errorMessage = "Error accessing camera. ";
-                
-                if (err.name === 'NotAllowedError') {
-                    errorMessage += "Camera permission was denied. Please allow camera access and refresh the page.";
-                } else if (err.name === 'NotFoundError') {
-                    errorMessage += "No camera found on this device.";
-                } else if (err.name === 'NotReadableError' || err.message.includes('in use') || err.message.includes('already')) {
-                    errorMessage += "Camera is currently in use. Please wait a moment and try again.";
-                } else if (err.name === 'AbortError') {
-                    errorMessage += "Camera access was aborted.";
-                } else if (err.name === 'NotSupportedError') {
-                    errorMessage += "Camera access is not supported in this browser.";
-                } else if (err.message && (err.message.includes('timeout') || err.message.includes('Camera access timeout'))) {
-                    errorMessage += "Camera is taking longer than expected. Please try again.";
-                } else {
-                    errorMessage += "Please ensure camera permissions are granted and try again.";
-                }
-                
-                statusMessage.textContent = errorMessage;
-                statusMessage.style.backgroundColor = "#ffebee";
-                statusMessage.style.color = "#c62828";
-                
-                // Add single retry button (no more multiple retries)
-                const retryButton = document.createElement('button');
-                retryButton.textContent = 'Try Again';
-                retryButton.className = 'btn';
-                retryButton.style.marginTop = '10px';
-                retryButton.onclick = async () => {
-                    retryButton.remove();
-                    statusMessage.textContent = "Accessing camera...";
-                    statusMessage.style.backgroundColor = "#e3f2fd";
-                    statusMessage.style.color = "#1976d2";
-                    // Quick retry without long delays
-                    await cleanupExistingCameras();
-                    await initCamera();
-                };
-                statusMessage.parentNode.insertBefore(retryButton, statusMessage.nextSibling);
-                
-                throw err;
-            }
-        }
-        
-        // Draw face position overlay
-        function drawFaceOverlay() {
-            const ctx = overlayCanvas.getContext('2d');
-            ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-            
-            // Draw face outline guide
-            const centerX = overlayCanvas.width / 2;
-            const centerY = overlayCanvas.height / 2;
-            const radius = Math.min(overlayCanvas.width, overlayCanvas.height) * 0.25;
-            
-            ctx.strokeStyle = 'rgba(76, 175, 80, 0.7)';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-            ctx.stroke();
-            
-            // Add text instruction
-            ctx.font = '20px Arial';
-            ctx.fillStyle = 'rgba(76, 175, 80, 0.9)';
-            ctx.textAlign = 'center';
-            ctx.fillText('Position your face here', centerX, centerY - radius - 20);
-        }
-        
-        // Capture face image
-        captureBtn.addEventListener('click', () => {
-            // Save video progress when capturing face
-            if (window.videoRecordingManager && window.videoRecordingManager.isRecording) {
-                window.videoRecordingManager.saveCurrentVideoProgress();
-            }
-            
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
-            // Get the image data
-            capturedImageData = canvas.toDataURL('image/jpeg');
-            
-            // Show the captured image
-            // Removed capturedFace.src = capturedImageData;
-            
-            // Enable verify button
-            verifyBtn.classList.remove('btn-disabled');
-            verifyBtn.disabled = false;
-            
-            // Update status
-            statusMessage.textContent = "Face captured. Click 'Verify Face' to continue.";
-        });
-        
-        // Verify face against ID photo
-        verifyBtn.addEventListener('click', async () => {
-            if (!capturedImageData) {
-                alert('Please capture your face image first.');
-                return;
-            }
-            
-            if (!sessionId) {
-                alert('Session ID not found. Please start the KYC process from the beginning.');
-                return;
-            }
-            
-            // Save video progress before verification
-            if (window.videoRecordingManager && window.videoRecordingManager.isRecording) {
-                console.log('💾 Saving video progress before face verification...');
-                await window.videoRecordingManager.saveCurrentVideoProgress();
-            }
-            
-            // Disable the button and show loading spinner
-            verifyBtn.disabled = true;
-            verifyBtn.classList.add('btn-disabled');
-            captureBtn.disabled = true;
-            captureBtn.classList.add('btn-disabled');
-            loadingSpinner.style.display = 'block';
-            statusMessage.textContent = "Verifying face... Please wait.";
-            
-            try {
-                // Send the captured face to the server for verification
-                const response = await fetch('/verify_face', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        image_data: capturedImageData,
-                        session_id: sessionId
-                    })
-                });
-                
-                const result = await response.json();
-                
-                // Hide loading spinner
-                loadingSpinner.style.display = 'none';
-                
-                // Show comparison images
-                // Removed comparisonContainer.style.display = 'flex';
-                // Removed idPhoto.src = result.id_photo_url;
-                
-                // Display verification result
-                resultContainer.style.display = 'block';
-                
-                if (result.success) {
-                    resultContainer.classList.add('success-result');
-                    resultContainer.classList.remove('failure-result');
-                    resultTitle.textContent = "Verification Successful";
-                    resultMessage.textContent = "Your face matches with the ID photo. KYC process is complete.";
-                    completeBtn.style.display = 'inline-block';
-                    
-                    // Save final video progress on successful verification
-                    if (window.videoRecordingManager && window.videoRecordingManager.isRecording) {
-                        console.log('💾 Saving final video progress - verification successful');
-                        await window.videoRecordingManager.saveCurrentVideoProgress();
-                    }
-                } else {
-                    resultContainer.classList.add('failure-result');
-                    resultContainer.classList.remove('success-result');
-                    resultTitle.textContent = "Verification Failed";
-                    resultMessage.textContent = result.message || "Your face doesn't match the ID photo. Please try again.";
-                    completeBtn.style.display = 'none';
-                }
-                
-                // Update status
-                statusMessage.textContent = result.success ? "Face verification successful!" : "Face verification failed";
-                
-            } catch (error) {
-                console.error('Error during face verification:', error);
-                loadingSpinner.style.display = 'none';
-                statusMessage.textContent = "Error during face verification. Please try again.";
-                verifyBtn.disabled = false;
-                verifyBtn.classList.remove('btn-disabled');
-                captureBtn.disabled = false;
-                captureBtn.classList.remove('btn-disabled');
-            }
-        });
-        
-        // Try again button
-        tryAgainBtn.addEventListener('click', () => {
-            // Reset UI
-            resultContainer.style.display = 'none';
-            // Removed comparisonContainer.style.display = 'none';
-            capturedImageData = null;
-            verifyBtn.disabled = true;
-            verifyBtn.classList.add('btn-disabled');
-            captureBtn.disabled = false;
-            captureBtn.classList.remove('btn-disabled');
-            statusMessage.textContent = "Please look at the camera for face verification";
-        });
-        
-        // Complete KYC button - handler will be replaced below with improved version
-        
-        // Automatic video saving implemented - no manual save button needed
-        
-        // Update video status periodically
-        function updateVideoStatus() {
-            if (window.videoRecordingManager && window.videoRecordingManager.isRecording) {
-                const status = window.videoRecordingManager.getStatus();
-                
-                if (status.isRecording) {
-                    videoStatus.style.display = 'block';
-                    videoStatusText.textContent = `Recording: ${status.recordingDuration.toFixed(0)}s`;
-                    
-                    // Calculate approximate size and show chunk information
-                    let totalSize = 0;
-                    let totalChunks = 0;
-                    let cameraInfo = [];
-                    
-                    if (window.videoRecordingManager.videoChunks) {
-                        Object.keys(window.videoRecordingManager.videoChunks).forEach(cameraType => {
-                            const chunks = window.videoRecordingManager.videoChunks[cameraType];
-                            if (chunks && chunks.length > 0) {
-                                const cameraSize = chunks.reduce((sum, chunk) => sum + chunk.size, 0);
-                                totalSize += cameraSize;
-                                totalChunks += chunks.length;
-                                cameraInfo.push(`${cameraType}: ${chunks.length} chunks (${(cameraSize / 1024 / 1024).toFixed(1)}MB)`);
-                            }
-                        });
-                    }
-                    
-                    if (totalSize > 0) {
-                        videoSize.textContent = `(${(totalSize / 1024 / 1024).toFixed(1)} MB, ${totalChunks} chunks)`;
-                        if (cameraInfo.length > 0) {
-                            videoSize.title = cameraInfo.join(', '); // Show detailed info on hover
-                        }
-                    } else {
-                        videoSize.textContent = '(accumulating...)';
-                    }
-                } else {
-                    videoStatus.style.display = 'none';
-                }
+      }
+
+      // Initialize camera with robust retry mechanism
+      async function initCamera() {
+        try {
+          await serverLog("🎥 Initializing camera for face verification...");
+
+          // Step 1: Quick cleanup of current page streams
+          await cleanupExistingCameras();
+
+          // Step 2: Use enhanced video recording cleanup
+          if (window.videoRecordingManager) {
+            await serverLog("🛑 Using enhanced video recording cleanup...");
+
+            // Use the new force cleanup method if available
+            if (
+              typeof window.videoRecordingManager
+                .forceCleanupForFaceVerification === "function"
+            ) {
+              await window.videoRecordingManager.forceCleanupForFaceVerification();
+              await serverLog("✅ Enhanced cleanup completed");
             } else {
-                videoStatus.style.display = 'none';
+              // Fallback to manual cleanup for compatibility
+              await serverLog("⚠️ Using fallback cleanup method", "WARN");
+
+              // Immediately set recording state to false
+              window.videoRecordingManager.isRecording = false;
+
+              // Force stop ALL MediaRecorder instances with immediate effect
+              if (window.videoRecordingManager.mediaRecorders) {
+                const recorderPromises = [];
+                for (const cameraType of Object.keys(
+                  window.videoRecordingManager.mediaRecorders
+                )) {
+                  const recorder =
+                    window.videoRecordingManager.mediaRecorders[cameraType];
+                  if (recorder && recorder.state !== "inactive") {
+                    await serverLog(
+                      `🛑 Force stopping ${cameraType} MediaRecorder...`
+                    );
+                    recorder.stop();
+                    // Create promise that resolves when recorder actually stops
+                    const stopPromise = new Promise((resolve) => {
+                      if (recorder.state === "inactive") {
+                        resolve();
+                      } else {
+                        recorder.addEventListener("stop", resolve, {
+                          once: true,
+                        });
+                        // Fallback timeout
+                        setTimeout(resolve, 1000);
+                      }
+                    });
+                    recorderPromises.push(stopPromise);
+                  }
+                }
+                // Wait for all recorders to actually stop
+                await Promise.all(recorderPromises);
+                window.videoRecordingManager.mediaRecorders = {};
+                await serverLog("✅ All MediaRecorders stopped and cleared");
+              }
+
+              // Force stop ALL camera streams with verification
+              if (window.videoRecordingManager.streams) {
+                for (const cameraType of Object.keys(
+                  window.videoRecordingManager.streams
+                )) {
+                  const stream =
+                    window.videoRecordingManager.streams[cameraType];
+                  if (stream) {
+                    await serverLog(
+                      `🎥 Force releasing ${cameraType} camera stream...`
+                    );
+                    for (const track of stream.getTracks()) {
+                      if (track.readyState !== "ended") {
+                        track.stop();
+                        await serverLog(
+                          `✋ Stopped ${track.kind} track for ${cameraType}`
+                        );
+
+                        // Wait for track to actually end
+                        let attempts = 0;
+                        while (track.readyState !== "ended" && attempts < 10) {
+                          await new Promise((resolve) =>
+                            setTimeout(resolve, 100)
+                          );
+                          attempts++;
+                        }
+
+                        if (track.readyState === "ended") {
+                          await serverLog(
+                            `✅ ${track.kind} track for ${cameraType} confirmed ended`
+                          );
+                        } else {
+                          await serverLog(
+                            `⚠️ ${track.kind} track for ${cameraType} may not have ended cleanly`,
+                            "WARN"
+                          );
+                        }
+                      }
+                    }
+                  }
+                }
+                window.videoRecordingManager.streams = {};
+                await serverLog("✅ All camera streams released and cleared");
+              }
+
+              // Clear all intervals
+              if (window.videoRecordingManager.autoSaveInterval) {
+                clearInterval(window.videoRecordingManager.autoSaveInterval);
+                window.videoRecordingManager.autoSaveInterval = null;
+              }
+              if (window.videoRecordingManager.backupSaveInterval) {
+                clearInterval(window.videoRecordingManager.backupSaveInterval);
+                window.videoRecordingManager.backupSaveInterval = null;
+              }
+
+              await serverLog("✅ Fallback cleanup completed");
             }
+          }
+
+          // Step 3: Extended wait for all browser resources to be fully released
+          await serverLog(
+            "⏳ Waiting for browser to fully release camera resources..."
+          );
+          await new Promise((resolve) => setTimeout(resolve, 4000)); // Increased to 4 seconds
+
+          // Step 4: Verify no active streams remain by checking navigator.mediaDevices
+          await serverLog("🔍 Verifying camera availability...");
+          try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const cameras = devices.filter(
+              (device) => device.kind === "videoinput"
+            );
+            await serverLog(
+              `📹 Found ${cameras.length} camera(s) available for access`
+            );
+            if (cameras.length === 0) {
+              throw new Error("No cameras found on this device");
+            }
+          } catch (enumError) {
+            await serverLog(
+              `⚠️ Device enumeration failed: ${enumError.message}`,
+              "WARN"
+            );
+          }
+
+          // Step 5: Try camera access with progressive fallback and longer timeouts
+          await serverLog(
+            "📷 Attempting camera access with robust configurations..."
+          );
+
+          const cameraConfigs = [
+            // Config 1 - Most basic (fastest)
+            {
+              video: true,
+            },
+            // Config 2 - Front camera minimal
+            {
+              video: {
+                facingMode: "user",
+              },
+            },
+            // Config 3 - Front camera with reasonable constraints
+            {
+              video: {
+                facingMode: "user",
+                width: { ideal: 640, min: 320 },
+                height: { ideal: 480, min: 240 },
+              },
+            },
+            // Config 4 - Any camera as last resort
+            {
+              video: {
+                width: { ideal: 640 },
+                height: { ideal: 480 },
+              },
+            },
+          ];
+
+          let stream = null;
+          let configUsed = 0;
+
+          for (let i = 0; i < cameraConfigs.length && !stream; i++) {
+            try {
+              await serverLog(
+                `📷 Trying camera config ${i + 1}/${cameraConfigs.length}...`
+              );
+
+              // Longer timeout for camera access
+              stream = await Promise.race([
+                navigator.mediaDevices.getUserMedia(cameraConfigs[i]),
+                new Promise(
+                  (_, reject) =>
+                    setTimeout(
+                      () => reject(new Error("Camera access timeout")),
+                      5000
+                    ) // Increased to 5 seconds
+                ),
+              ]);
+
+              configUsed = i + 1;
+              await serverLog(
+                `✅ Camera accessed successfully with config ${configUsed}`
+              );
+              break;
+            } catch (error) {
+              await serverLog(
+                `⚠️ Config ${i + 1} failed: ${error.name || "Unknown"} - ${
+                  error.message
+                }`,
+                "WARN"
+              );
+
+              // Special handling for specific camera errors with longer waits
+              if (
+                error.name === "NotReadableError" ||
+                error.message.includes("in use") ||
+                error.message.includes("Could not start")
+              ) {
+                await serverLog(
+                  "🔄 Camera in use - waiting 5s before next attempt...",
+                  "WARN"
+                );
+                await new Promise((resolve) => setTimeout(resolve, 5000)); // Increased wait time
+              } else if (error.name === "OverconstrainedError") {
+                await serverLog(
+                  "🔧 Camera constraints too strict - trying simpler config...",
+                  "WARN"
+                );
+                await new Promise((resolve) => setTimeout(resolve, 1000));
+              } else if (
+                error.name === "AbortError" ||
+                error.message.includes("timeout")
+              ) {
+                await serverLog(
+                  "⏰ Camera access timed out - trying next config...",
+                  "WARN"
+                );
+                await new Promise((resolve) => setTimeout(resolve, 2000));
+              }
+
+              if (i === cameraConfigs.length - 1) {
+                throw error; // Throw the last error if all configs fail
+              }
+            }
+          }
+
+          if (!stream) {
+            throw new Error(
+              "Could not access camera - no stream available after all attempts"
+            );
+          }
+
+          // Step 6: Verify stream is actually working
+          await serverLog("🔍 Verifying camera stream...");
+          const tracks = stream.getTracks();
+          if (tracks.length === 0) {
+            throw new Error("Camera stream has no tracks");
+          }
+
+          const videoTrack = tracks.find((track) => track.kind === "video");
+          if (!videoTrack) {
+            throw new Error("Camera stream has no video track");
+          }
+
+          if (videoTrack.readyState !== "live") {
+            await serverLog(
+              `⚠️ Video track state is ${videoTrack.readyState}, expected 'live'`,
+              "WARN"
+            );
+          }
+
+          video.srcObject = stream;
+
+          // Step 7: Start video playback with extended timeout
+          return new Promise((resolve, reject) => {
+            const timeoutId = setTimeout(() => {
+              serverLog("❌ Video playback timeout after 15 seconds", "ERROR");
+              reject(new Error("Video playback timeout"));
+            }, 15000); // Increased timeout to 15 seconds
+
+            video.onloadedmetadata = () => {
+              serverLog("📹 Video metadata loaded, starting playback...");
+              video
+                .play()
+                .then(() => {
+                  serverLog("✅ Camera ready for face verification");
+                  clearTimeout(timeoutId);
+                  overlayCanvas.width = video.videoWidth;
+                  overlayCanvas.height = video.videoHeight;
+                  drawFaceOverlay();
+                  statusMessage.textContent =
+                    "Camera ready. Position your face in the circle and click 'Capture'";
+                  statusMessage.style.backgroundColor = "#e8f5e8";
+                  statusMessage.style.color = "#2e7d32";
+                  resolve();
+                })
+                .catch((playError) => {
+                  serverLog(
+                    `❌ Video playback failed: ${playError.message}`,
+                    "ERROR"
+                  );
+                  clearTimeout(timeoutId);
+                  reject(playError);
+                });
+            };
+
+            video.onerror = (error) => {
+              serverLog(`❌ Video element error: ${error}`, "ERROR");
+              clearTimeout(timeoutId);
+              reject(new Error("Video playback failed"));
+            };
+          });
+        } catch (err) {
+          await serverLog(
+            `❌ Camera initialization failed: ${err.message}`,
+            "ERROR"
+          );
+
+          // Provide specific error messages
+          let errorMessage = "Error accessing camera. ";
+
+          if (err.name === "NotAllowedError") {
+            errorMessage +=
+              "Camera permission was denied. Please allow camera access and refresh the page.";
+          } else if (err.name === "NotFoundError") {
+            errorMessage += "No camera found on this device.";
+          } else if (
+            err.name === "NotReadableError" ||
+            err.message.includes("in use") ||
+            err.message.includes("already")
+          ) {
+            errorMessage +=
+              "Camera is currently in use by another application. Please close other apps using the camera and wait 10 seconds before trying again.";
+          } else if (err.name === "AbortError") {
+            errorMessage += "Camera access was aborted.";
+          } else if (err.name === "NotSupportedError") {
+            errorMessage += "Camera access is not supported in this browser.";
+          } else if (
+            err.message &&
+            (err.message.includes("timeout") ||
+              err.message.includes("Camera access timeout"))
+          ) {
+            errorMessage +=
+              "Camera is taking longer than expected. This usually means the camera is busy. Please wait 10 seconds and try again.";
+          } else {
+            errorMessage +=
+              "Please ensure camera permissions are granted and no other applications are using the camera, then try again.";
+          }
+
+          statusMessage.textContent = errorMessage;
+          statusMessage.style.backgroundColor = "#ffebee";
+          statusMessage.style.color = "#c62828";
+
+          // Add enhanced retry button with longer wait suggestion
+          const retryButton = document.createElement("button");
+          retryButton.textContent = "Wait 10s & Try Again";
+          retryButton.className = "btn";
+          retryButton.style.marginTop = "10px";
+          retryButton.onclick = async () => {
+            retryButton.textContent = "Waiting...";
+            retryButton.disabled = true;
+            statusMessage.textContent =
+              "Waiting 10 seconds for camera to become available...";
+            statusMessage.style.backgroundColor = "#fff3e0";
+            statusMessage.style.color = "#f57c00";
+
+            // Wait 10 seconds before retry
+            await new Promise((resolve) => setTimeout(resolve, 10000));
+
+            retryButton.remove();
+            statusMessage.textContent = "Accessing camera...";
+            statusMessage.style.backgroundColor = "#e3f2fd";
+            statusMessage.style.color = "#1976d2";
+
+            // Extended cleanup before retry
+            await cleanupExistingCameras();
+            await initCamera();
+          };
+          statusMessage.parentNode.insertBefore(
+            retryButton,
+            statusMessage.nextSibling
+          );
+
+          throw err;
         }
-        
-        // Start video status updates
-        setInterval(updateVideoStatus, 2000);
-        
-        // Camera initialization is now handled by DOMContentLoaded event with proper timing
+      }
+
+      // Draw face position overlay
+      function drawFaceOverlay() {
+        const ctx = overlayCanvas.getContext("2d");
+        ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+        // Draw face outline guide
+        const centerX = overlayCanvas.width / 2;
+        const centerY = overlayCanvas.height / 2;
+        const radius =
+          Math.min(overlayCanvas.width, overlayCanvas.height) * 0.25;
+
+        ctx.strokeStyle = "rgba(76, 175, 80, 0.7)";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+        ctx.stroke();
+
+        // Add text instruction
+        ctx.font = "20px Arial";
+        ctx.fillStyle = "rgba(76, 175, 80, 0.9)";
+        ctx.textAlign = "center";
+        ctx.fillText("Position your face here", centerX, centerY - radius - 20);
+      }
+
+      // Capture face image
+      captureBtn.addEventListener("click", () => {
+        // Save video progress when capturing face
+        if (
+          window.videoRecordingManager &&
+          window.videoRecordingManager.isRecording
+        ) {
+          window.videoRecordingManager.saveCurrentVideoProgress();
+        }
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        // Get the image data
+        capturedImageData = canvas.toDataURL("image/jpeg");
+
+        // Show the captured image
+        // Removed capturedFace.src = capturedImageData;
+
+        // Enable verify button
+        verifyBtn.classList.remove("btn-disabled");
+        verifyBtn.disabled = false;
+
+        // Update status
+        statusMessage.textContent =
+          "Face captured. Click 'Verify Face' to continue.";
+      });
+
+      // Verify face against ID photo
+      verifyBtn.addEventListener("click", async () => {
+        if (!capturedImageData) {
+          alert("Please capture your face image first.");
+          return;
+        }
+
+        if (!sessionId) {
+          alert(
+            "Session ID not found. Please start the KYC process from the beginning."
+          );
+          return;
+        }
+
+        // Save video progress before verification
+        if (
+          window.videoRecordingManager &&
+          window.videoRecordingManager.isRecording
+        ) {
+          console.log("💾 Saving video progress before face verification...");
+          await window.videoRecordingManager.saveCurrentVideoProgress();
+        }
+
+        // Disable the button and show loading spinner
+        verifyBtn.disabled = true;
+        verifyBtn.classList.add("btn-disabled");
+        captureBtn.disabled = true;
+        captureBtn.classList.add("btn-disabled");
+        loadingSpinner.style.display = "block";
+        statusMessage.textContent = "Verifying face... Please wait.";
+
+        try {
+          // Send the captured face to the server for verification
+          const response = await fetch("/verify_face", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              image_data: capturedImageData,
+              session_id: sessionId,
+            }),
+          });
+
+          const result = await response.json();
+
+          // Hide loading spinner
+          loadingSpinner.style.display = "none";
+
+          // Show comparison images
+          // Removed comparisonContainer.style.display = 'flex';
+          // Removed idPhoto.src = result.id_photo_url;
+
+          // Display verification result
+          resultContainer.style.display = "block";
+
+          if (result.success) {
+            resultContainer.classList.add("success-result");
+            resultContainer.classList.remove("failure-result");
+            resultTitle.textContent = "Verification Successful";
+            resultMessage.textContent =
+              "Your face matches with the ID photo. KYC process is complete.";
+            completeBtn.style.display = "inline-block";
+
+            // Save final video progress on successful verification
+            if (
+              window.videoRecordingManager &&
+              window.videoRecordingManager.isRecording
+            ) {
+              console.log(
+                "💾 Saving final video progress - verification successful"
+              );
+              await window.videoRecordingManager.saveCurrentVideoProgress();
+            }
+          } else {
+            resultContainer.classList.add("failure-result");
+            resultContainer.classList.remove("success-result");
+            resultTitle.textContent = "Verification Failed";
+            resultMessage.textContent =
+              result.message ||
+              "Your face doesn't match the ID photo. Please try again.";
+            completeBtn.style.display = "none";
+          }
+
+          // Update status
+          statusMessage.textContent = result.success
+            ? "Face verification successful!"
+            : "Face verification failed";
+        } catch (error) {
+          console.error("Error during face verification:", error);
+          loadingSpinner.style.display = "none";
+          statusMessage.textContent =
+            "Error during face verification. Please try again.";
+          verifyBtn.disabled = false;
+          verifyBtn.classList.remove("btn-disabled");
+          captureBtn.disabled = false;
+          captureBtn.classList.remove("btn-disabled");
+        }
+      });
+
+      // Try again button
+      tryAgainBtn.addEventListener("click", () => {
+        // Reset UI
+        resultContainer.style.display = "none";
+        // Removed comparisonContainer.style.display = 'none';
+        capturedImageData = null;
+        verifyBtn.disabled = true;
+        verifyBtn.classList.add("btn-disabled");
+        captureBtn.disabled = false;
+        captureBtn.classList.remove("btn-disabled");
+        statusMessage.textContent =
+          "Please look at the camera for face verification";
+      });
+
+      // Complete KYC button - handler will be replaced below with improved version
+
+      // Automatic video saving implemented - no manual save button needed
+
+      // Update video status periodically
+      function updateVideoStatus() {
+        if (
+          window.videoRecordingManager &&
+          window.videoRecordingManager.isRecording
+        ) {
+          const status = window.videoRecordingManager.getStatus();
+
+          if (status.isRecording) {
+            videoStatus.style.display = "block";
+            videoStatusText.textContent = `Recording: ${status.recordingDuration.toFixed(
+              0
+            )}s`;
+
+            // Calculate approximate size and show chunk information
+            let totalSize = 0;
+            let totalChunks = 0;
+            let cameraInfo = [];
+
+            if (window.videoRecordingManager.videoChunks) {
+              Object.keys(window.videoRecordingManager.videoChunks).forEach(
+                (cameraType) => {
+                  const chunks =
+                    window.videoRecordingManager.videoChunks[cameraType];
+                  if (chunks && chunks.length > 0) {
+                    const cameraSize = chunks.reduce(
+                      (sum, chunk) => sum + chunk.size,
+                      0
+                    );
+                    totalSize += cameraSize;
+                    totalChunks += chunks.length;
+                    cameraInfo.push(
+                      `${cameraType}: ${chunks.length} chunks (${(
+                        cameraSize /
+                        1024 /
+                        1024
+                      ).toFixed(1)}MB)`
+                    );
+                  }
+                }
+              );
+            }
+
+            if (totalSize > 0) {
+              videoSize.textContent = `(${(totalSize / 1024 / 1024).toFixed(
+                1
+              )} MB, ${totalChunks} chunks)`;
+              if (cameraInfo.length > 0) {
+                videoSize.title = cameraInfo.join(", "); // Show detailed info on hover
+              }
+            } else {
+              videoSize.textContent = "(accumulating...)";
+            }
+          } else {
+            videoStatus.style.display = "none";
+          }
+        } else {
+          videoStatus.style.display = "none";
+        }
+      }
+
+      // Start video status updates
+      setInterval(updateVideoStatus, 2000);
+
+      // Camera initialization is now handled by DOMContentLoaded event with proper timing
     </script>
-    
+
     <!-- Include video recording functionality -->
     <script src="/static/js/video-recorder.js"></script>
     <script>
-        // Initialize video recording for face verification page
-        document.addEventListener('DOMContentLoaded', async function() {
-            await serverLog('👤 Face verification page loaded - setting up video recording...');
-            
-            // Get session ID from localStorage
-            let sessionId = localStorage.getItem('kyc_session_id');
-            if (!sessionId) {
-                sessionId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-                    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-                    return v.toString(16);
-                });
-                localStorage.setItem('kyc_session_id', sessionId);
-                await serverLog(`🆔 Generated new session ID: ${sessionId}`);
-            } else {
-                await serverLog(`🆔 Using existing session ID: ${sessionId}`);
+      // Initialize video recording for face verification page
+      document.addEventListener("DOMContentLoaded", async function () {
+        await serverLog(
+          "👤 Face verification page loaded - setting up video recording..."
+        );
+
+        // Get session ID from localStorage
+        let sessionId = localStorage.getItem("kyc_session_id");
+        if (!sessionId) {
+          sessionId = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(
+            /[xy]/g,
+            function (c) {
+              var r = (Math.random() * 16) | 0,
+                v = c == "x" ? r : (r & 0x3) | 0x8;
+              return v.toString(16);
             }
-            
-            // Add recording notification banner for face verification
-            const notification = document.createElement('div');
-            notification.id = 'recording-notification';
-            notification.innerHTML = `
+          );
+          localStorage.setItem("kyc_session_id", sessionId);
+          await serverLog(`🆔 Generated new session ID: ${sessionId}`);
+        } else {
+          await serverLog(`🆔 Using existing session ID: ${sessionId}`);
+        }
+
+        // Add recording notification banner for face verification
+        const notification = document.createElement("div");
+        notification.id = "recording-notification";
+        notification.innerHTML = `
                 <div style="
                     background: linear-gradient(135deg, #dc3545, #c82333);
                     color: white;
@@ -697,206 +942,247 @@
                     <strong>Session Recording Active</strong> - Final verification step being recorded
                 </div>
             `;
-            document.body.insertBefore(notification, document.body.firstChild);
-            
-            // Stop any existing video recording immediately before camera initialization
-            await serverLog('📷 Preparing for instant camera initialization...');
-            
-            // Aggressively clean up ALL video recording resources immediately
-            if (window.videoRecordingManager) {
-                await serverLog('🛑 Immediate aggressive cleanup of video recording...');
-                
-                // Stop recording immediately
-                window.videoRecordingManager.isRecording = false;
-                
-                // Force stop ALL MediaRecorder instances
-                if (window.videoRecordingManager.mediaRecorders) {
-                    for (const cameraType of Object.keys(window.videoRecordingManager.mediaRecorders)) {
-                        const recorder = window.videoRecordingManager.mediaRecorders[cameraType];
-                        if (recorder && recorder.state !== 'inactive') {
-                            await serverLog(`🛑 Immediate stop ${cameraType} recorder...`);
-                            recorder.stop();
-                        }
-                    }
-                    window.videoRecordingManager.mediaRecorders = {};
-                }
-                
-                // Force stop ALL camera streams
-                if (window.videoRecordingManager.streams) {
-                    for (const cameraType of Object.keys(window.videoRecordingManager.streams)) {
-                        const stream = window.videoRecordingManager.streams[cameraType];
-                        if (stream) {
-                            await serverLog(`🎥 Immediate release ${cameraType} camera...`);
-                            stream.getTracks().forEach(track => track.stop());
-                        }
-                    }
-                    window.videoRecordingManager.streams = {};
-                }
-                
-                // Clear all intervals immediately
-                if (window.videoRecordingManager.autoSaveInterval) {
-                    clearInterval(window.videoRecordingManager.autoSaveInterval);
-                    window.videoRecordingManager.autoSaveInterval = null;
-                }
-                if (window.videoRecordingManager.backupSaveInterval) {
-                    clearInterval(window.videoRecordingManager.backupSaveInterval);
-                    window.videoRecordingManager.backupSaveInterval = null;
-                }
-                
-                await serverLog('✅ Immediate cleanup completed');
+        document.body.insertBefore(notification, document.body.firstChild);
+
+        // Stop any existing video recording immediately before camera initialization
+        await serverLog("📷 Preparing for instant camera initialization...");
+
+        // Aggressively clean up ALL video recording resources immediately
+        if (window.videoRecordingManager) {
+          await serverLog(
+            "🛑 Immediate aggressive cleanup of video recording..."
+          );
+
+          // Stop recording immediately
+          window.videoRecordingManager.isRecording = false;
+
+          // Force stop ALL MediaRecorder instances
+          if (window.videoRecordingManager.mediaRecorders) {
+            for (const cameraType of Object.keys(
+              window.videoRecordingManager.mediaRecorders
+            )) {
+              const recorder =
+                window.videoRecordingManager.mediaRecorders[cameraType];
+              if (recorder && recorder.state !== "inactive") {
+                await serverLog(`🛑 Immediate stop ${cameraType} recorder...`);
+                recorder.stop();
+              }
             }
-            
-            // Longer delay to ensure all browser resources are completely freed
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            
-            // Start camera initialization immediately 
-            initCamera().then(() => {
-                serverLog('✅ Face verification camera initialized successfully');
-            }).catch((error) => {
-                serverLog(`❌ Face verification camera initialization failed: ${error.message}`, 'ERROR');
-                serverLog('⚠️ Camera failed to initialize - user can retry manually', 'WARN');
+            window.videoRecordingManager.mediaRecorders = {};
+          }
+
+          // Force stop ALL camera streams
+          if (window.videoRecordingManager.streams) {
+            for (const cameraType of Object.keys(
+              window.videoRecordingManager.streams
+            )) {
+              const stream = window.videoRecordingManager.streams[cameraType];
+              if (stream) {
+                await serverLog(`🎥 Immediate release ${cameraType} camera...`);
+                stream.getTracks().forEach((track) => track.stop());
+              }
+            }
+            window.videoRecordingManager.streams = {};
+          }
+
+          // Clear all intervals immediately
+          if (window.videoRecordingManager.autoSaveInterval) {
+            clearInterval(window.videoRecordingManager.autoSaveInterval);
+            window.videoRecordingManager.autoSaveInterval = null;
+          }
+          if (window.videoRecordingManager.backupSaveInterval) {
+            clearInterval(window.videoRecordingManager.backupSaveInterval);
+            window.videoRecordingManager.backupSaveInterval = null;
+          }
+
+          await serverLog("✅ Immediate cleanup completed");
+        }
+
+        // Longer delay to ensure all browser resources are completely freed
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+
+        // Start camera initialization immediately
+        initCamera()
+          .then(() => {
+            serverLog("✅ Face verification camera initialized successfully");
+          })
+          .catch((error) => {
+            serverLog(
+              `❌ Face verification camera initialization failed: ${error.message}`,
+              "ERROR"
+            );
+            serverLog(
+              "⚠️ Camera failed to initialize - user can retry manually",
+              "WARN"
+            );
+          });
+
+        // Ensure video recording manager doesn't start new recordings
+        if (window.videoRecordingManager) {
+          // Override the startRecording method to prevent new recordings during face verification
+          const originalStartRecording =
+            window.videoRecordingManager.startRecording;
+          window.videoRecordingManager.startRecording = async function () {
+            await serverLog(
+              "🚫 Video recording disabled during face verification phase"
+            );
+            return false; // Don't start recording
+          };
+          await serverLog(
+            "🔒 Video recording manager locked to prevent camera conflicts"
+          );
+        }
+
+        await serverLog(
+          "ℹ️ Face verification phase - no video recording to avoid camera conflicts"
+        );
+      });
+
+      // Complete KYC and upload final video
+      const originalCompleteHandler = completeBtn.onclick;
+      completeBtn.onclick = async function () {
+        // Disable button to prevent double-clicks
+        completeBtn.disabled = true;
+        completeBtn.textContent = "Completing KYC...";
+
+        await serverLog("🏁 Starting KYC completion process...");
+
+        try {
+          let videoUploadSuccess = false;
+          let videoUploadMessage = "";
+
+          // Always try to upload backup videos since face verification doesn't do live recording
+          await serverLog("📤 Uploading session videos to S3...");
+          completeBtn.textContent = "Uploading videos...";
+
+          try {
+            // First, try to upload the most recent backup videos to S3
+            await serverLog(
+              "🔄 Uploading backup videos from ID capture phase..."
+            );
+
+            const fallbackResponse = await fetch("/upload_backup_video_to_s3", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                session_id: sessionId,
+              }),
             });
-            
-            // Ensure video recording manager doesn't start new recordings
-            if (window.videoRecordingManager) {
-                // Override the startRecording method to prevent new recordings during face verification
-                const originalStartRecording = window.videoRecordingManager.startRecording;
-                window.videoRecordingManager.startRecording = async function() {
-                    await serverLog('🚫 Video recording disabled during face verification phase');
-                    return false; // Don't start recording
-                };
-                await serverLog('🔒 Video recording manager locked to prevent camera conflicts');
+
+            const fallbackResult = await fallbackResponse.json();
+
+            if (fallbackResult.success) {
+              await serverLog(
+                `✅ Session videos uploaded successfully: ${fallbackResult.message}`
+              );
+              videoUploadSuccess = true;
+              videoUploadMessage = `Session videos uploaded: ${fallbackResult.message}`;
+              statusMessage.textContent = `Videos uploaded successfully`;
+              statusMessage.style.backgroundColor = "#e8f5e8";
+              statusMessage.style.color = "#2e7d32";
+            } else {
+              await serverLog(
+                `⚠️ Backup video upload had issues: ${fallbackResult.error}`,
+                "WARN"
+              );
+              videoUploadMessage = `Video upload completed with warnings: ${fallbackResult.error}`;
+              statusMessage.textContent = `Videos uploaded with warnings: ${fallbackResult.error}`;
+              statusMessage.style.backgroundColor = "#fff3cd";
+              statusMessage.style.color = "#856404";
+              // Still consider this a success since some videos might have uploaded
+              videoUploadSuccess = true;
             }
-            
-            await serverLog('ℹ️ Face verification phase - no video recording to avoid camera conflicts');
-        });
-        
-        // Complete KYC and upload final video
-        const originalCompleteHandler = completeBtn.onclick;
-        completeBtn.onclick = async function() {
-            // Disable button to prevent double-clicks
-            completeBtn.disabled = true;
-            completeBtn.textContent = 'Completing KYC...';
-            
-            await serverLog('🏁 Starting KYC completion process...');
-            
-            try {
-                let videoUploadSuccess = false;
-                let videoUploadMessage = '';
-                
-                // Always try to upload backup videos since face verification doesn't do live recording
-                await serverLog('📤 Uploading session videos to S3...');
-                completeBtn.textContent = 'Uploading videos...';
-                
-                try {
-                    // First, try to upload the most recent backup videos to S3
-                    await serverLog('🔄 Uploading backup videos from ID capture phase...');
-                    
-                    const fallbackResponse = await fetch('/upload_backup_video_to_s3', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            session_id: sessionId
-                        })
-                    });
-                    
-                    const fallbackResult = await fallbackResponse.json();
-                    
-                    if (fallbackResult.success) {
-                        await serverLog(`✅ Session videos uploaded successfully: ${fallbackResult.message}`);
-                        videoUploadSuccess = true;
-                        videoUploadMessage = `Session videos uploaded: ${fallbackResult.message}`;
-                        statusMessage.textContent = `Videos uploaded successfully`;
-                        statusMessage.style.backgroundColor = "#e8f5e8";
-                        statusMessage.style.color = "#2e7d32";
-                    } else {
-                        await serverLog(`⚠️ Backup video upload had issues: ${fallbackResult.error}`, 'WARN');
-                        videoUploadMessage = `Video upload completed with warnings: ${fallbackResult.error}`;
-                        statusMessage.textContent = `Videos uploaded with warnings: ${fallbackResult.error}`;
-                        statusMessage.style.backgroundColor = "#fff3cd";
-                        statusMessage.style.color = "#856404";
-                        // Still consider this a success since some videos might have uploaded
-                        videoUploadSuccess = true;
-                    }
-                    
-                } catch (uploadError) {
-                    await serverLog(`❌ Video upload error: ${uploadError.message}`, 'ERROR');
-                    videoUploadMessage = `Video upload failed: ${uploadError.message}`;
-                    statusMessage.textContent = `Warning: Video upload failed - KYC will complete without video.`;
-                    statusMessage.style.backgroundColor = "#ffebee";
-                    statusMessage.style.color = "#c62828";
-                }
-                
-                // Clean up video recording manager state
-                if (window.videoRecordingManager) {
-                    await serverLog('🛑 Stopping video recording...');
-                    window.videoRecordingManager.stopRecording();
-                }
-                
-                // Clear any remaining intervals
-                if (window.videoRecordingManager && window.videoRecordingManager.autoSaveInterval) {
-                    clearInterval(window.videoRecordingManager.autoSaveInterval);
-                    window.videoRecordingManager.autoSaveInterval = null;
-                }
-                
-                // Clear session storage to complete KYC
-                await serverLog('🧹 Cleaning up session data...');
-                
-                // Show success message
-                completeBtn.textContent = 'KYC Complete!';
-                completeBtn.style.backgroundColor = '#28a745';
-                
-                // Update final status message
-                if (videoUploadSuccess) {
-                    statusMessage.textContent = `KYC completed successfully! ${videoUploadMessage}`;
-                    statusMessage.style.backgroundColor = "#e8f5e8";
-                    statusMessage.style.color = "#2e7d32";
-                } else {
-                    statusMessage.textContent = `KYC completed! Note: ${videoUploadMessage}`;
-                    statusMessage.style.backgroundColor = "#fff3cd";
-                    statusMessage.style.color = "#856404";
-                }
-                
-                // Brief delay to show success message
-                setTimeout(() => {
-                    serverLog('🏠 Redirecting to homepage...');
-                    // Redirect to homepage
-                    window.location.href = "/";
-                }, 3000); // Increased delay to show message
-                
-            } catch (error) {
-                await serverLog(`❌ Error completing KYC: ${error.message}`, 'ERROR');
-                completeBtn.disabled = false;
-                completeBtn.textContent = 'Complete KYC';
-                completeBtn.style.backgroundColor = '#4CAF50';
-                
-                // Show error message to user
-                statusMessage.textContent = `Error completing KYC: ${error.message} Please try again.`;
-                statusMessage.style.backgroundColor = "#ffebee";
-                statusMessage.style.color = "#c62828";
-            }
-        };
-        
-        // Stop recording when user leaves the face verification page 
-        window.addEventListener('beforeunload', async function(event) {
-            if (window.videoRecordingManager && window.videoRecordingManager.isRecording) {
-                console.log('🛑 User leaving face verification page - saving and stopping video recording');
-                
-                try {
-                    // Save current progress before leaving
-                    await window.videoRecordingManager.saveCurrentVideoProgress();
-                    console.log('💾 Final video progress saved before page unload');
-                } catch (error) {
-                    console.error('❌ Error saving video progress before unload:', error);
-                }
-                
-                // Stop recording
-                window.videoRecordingManager.stopRecording();
-                console.log('🛑 Video recording stopped due to page unload');
-            }
-        });
+          } catch (uploadError) {
+            await serverLog(
+              `❌ Video upload error: ${uploadError.message}`,
+              "ERROR"
+            );
+            videoUploadMessage = `Video upload failed: ${uploadError.message}`;
+            statusMessage.textContent = `Warning: Video upload failed - KYC will complete without video.`;
+            statusMessage.style.backgroundColor = "#ffebee";
+            statusMessage.style.color = "#c62828";
+          }
+
+          // Clean up video recording manager state
+          if (window.videoRecordingManager) {
+            await serverLog("🛑 Stopping video recording...");
+            window.videoRecordingManager.stopRecording();
+          }
+
+          // Clear any remaining intervals
+          if (
+            window.videoRecordingManager &&
+            window.videoRecordingManager.autoSaveInterval
+          ) {
+            clearInterval(window.videoRecordingManager.autoSaveInterval);
+            window.videoRecordingManager.autoSaveInterval = null;
+          }
+
+          // Clear session storage to complete KYC
+          await serverLog("🧹 Cleaning up session data...");
+
+          // Show success message
+          completeBtn.textContent = "KYC Complete!";
+          completeBtn.style.backgroundColor = "#28a745";
+
+          // Update final status message
+          if (videoUploadSuccess) {
+            statusMessage.textContent = `KYC completed successfully! ${videoUploadMessage}`;
+            statusMessage.style.backgroundColor = "#e8f5e8";
+            statusMessage.style.color = "#2e7d32";
+          } else {
+            statusMessage.textContent = `KYC completed! Note: ${videoUploadMessage}`;
+            statusMessage.style.backgroundColor = "#fff3cd";
+            statusMessage.style.color = "#856404";
+          }
+
+          // Brief delay to show success message
+          setTimeout(() => {
+            serverLog("🏠 Redirecting to homepage...");
+            // Redirect to homepage
+            window.location.href = "/";
+          }, 3000); // Increased delay to show message
+        } catch (error) {
+          await serverLog(`❌ Error completing KYC: ${error.message}`, "ERROR");
+          completeBtn.disabled = false;
+          completeBtn.textContent = "Complete KYC";
+          completeBtn.style.backgroundColor = "#4CAF50";
+
+          // Show error message to user
+          statusMessage.textContent = `Error completing KYC: ${error.message} Please try again.`;
+          statusMessage.style.backgroundColor = "#ffebee";
+          statusMessage.style.color = "#c62828";
+        }
+      };
+
+      // Stop recording when user leaves the face verification page
+      window.addEventListener("beforeunload", async function (event) {
+        if (
+          window.videoRecordingManager &&
+          window.videoRecordingManager.isRecording
+        ) {
+          console.log(
+            "🛑 User leaving face verification page - saving and stopping video recording"
+          );
+
+          try {
+            // Save current progress before leaving
+            await window.videoRecordingManager.saveCurrentVideoProgress();
+            console.log("💾 Final video progress saved before page unload");
+          } catch (error) {
+            console.error(
+              "❌ Error saving video progress before unload:",
+              error
+            );
+          }
+
+          // Stop recording
+          window.videoRecordingManager.stopRecording();
+          console.log("🛑 Video recording stopped due to page unload");
+        }
+      });
     </script>
-</body>
-</html> 
+  </body>
+</html>
